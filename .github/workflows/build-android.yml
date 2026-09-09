@@ -1,0 +1,213 @@
+name: Build Android app
+
+# Builds the Android app entirely on GitHub's runners, since Android builds
+# need the Android SDK/NDK + network access that isn't available in every
+# dev environment. Mirrors build-windows-installer.yml's trigger shape.
+#
+# `src-tauri/gen/android/` is NOT committed to this repo — this workflow
+# regenerates it fresh on every run via `tauri android init`, which is the
+# standard pattern for Tauri mobile projects (the generated Gradle project
+# is reproducible from tauri.conf.json + the capability files, so there's
+# nothing to gain from committing it, and it avoids the generated project
+# drifting out of sync with a manually-edited copy).
+#
+# Produces DEBUG APKs only right now (self-signed with Android's default
+# debug key, installable on a device/emulator for testing, NOT suitable for
+# the Play Store), split per ABI so no single file bundles all four
+# architectures' native libraries. See the commented-out RELEASE SIGNING
+# block at the bottom for what's needed to produce a signed release .aab —
+# that part needs a real keystore + `gen/android` to actually exist first so
+# its signing config can be wired up; it's stubbed here, not implemented.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src-tauri/**"
+      - "src/**"
+      - "public/**"
+      - "package.json"
+      - "bun.lock"
+      - ".github/workflows/build-android.yml"
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # Installs the Android SDK command-line tools + platform tools and
+      # sets ANDROID_HOME/ANDROID_SDK_ROOT for the later steps.
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      # Fresh runners have not accepted the SDK licenses; installing the
+      # NDK or letting Gradle pull build-tools/platforms without this first
+      # fails with "some licences have not been accepted".
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses > /dev/null || true
+
+      # NDK version: pin this to whatever `tauri android init` reports it
+      # needs the first time this workflow actually runs (check the job
+      # log) — 27.x is current at the time of writing, but Tauri's minimum
+      # supported NDK version does move between CLI releases, so don't
+      # assume this stays correct without checking a real run's output.
+      - name: Install Android NDK
+        run: sdkmanager --install "ndk;27.0.12077973"
+
+      - name: Install Rust stable with Android targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Rust build cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      # Both names are set — depending on which AGP/NDK Gradle plugin
+      # version Tauri's Android template pulls in, either one might be the
+      # one actually read. Setting only one was a gap in an earlier draft
+      # of this workflow.
+      - name: Point Tauri at the installed NDK
+        run: |
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+
+      # First run on a repo with no `gen/android` yet: this creates it.
+      # `--ci` is meant to skip the interactive prompts `init` otherwise
+      # asks — UNVERIFIED against this Tauri CLI version's actual flags
+      # (no network in the environment that authored this workflow to check
+      # `tauri android init --help`). If the job fails immediately with an
+      # "unknown flag" error, drop `--ci`; if it instead hangs waiting for
+      # input, that confirms a prompt exists and needs a different flag or
+      # a piped answer — check the log either way before assuming this line
+      # is correct.
+      - name: Initialize the Android project
+        run: bunx tauri android init --ci
+
+      # Placed after `tauri android init` (not before) so the generated
+      # Gradle files actually exist for `hashFiles` to hash — an earlier
+      # draft of this workflow ran this step first, which meant the glob
+      # matched nothing and the cache key never varied with real content.
+      - name: Gradle cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('src-tauri/gen/android/**/*.gradle*') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      # `--split-per-abi` avoids a single "universal" APK that bundles native
+      # libraries for all four architectures (aarch64, armv7, i686, x86_64)
+      # into one file — that's what was ballooning the debug APK to ~490MB.
+      # With this flag Gradle instead produces one smaller APK per ABI under
+      # app/build/outputs/apk/<abi>/debug/.
+      - name: Build the Android app (debug APKs, split per ABI)
+        run: bunx tauri android build --apk --debug --split-per-abi
+
+      # Logged so a real run's output confirms the exact per-ABI file names
+      # this Tauri/Gradle version produces — the globs below are pattern
+      # matches (via if-no-files-found: warn, not error) rather than a
+      # guaranteed-exact filename, precisely so this log is the place to
+      # double check them if a pattern below ever needs adjusting.
+      - name: List built APKs
+        run: find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' -exec ls -lh {} \;
+
+      # Uploaded as four separate artifacts (instead of one zip bundling all
+      # of them) so installing on a real device only means downloading the
+      # one file that matches it — most modern phones want arm64-v8a.
+      - name: Upload arm64-v8a APK (most phones)
+        uses: actions/upload-artifact@v4
+        with:
+          name: turf-ledger-arm64-v8a-debug
+          path: src-tauri/gen/android/app/build/outputs/apk/**/*arm64*.apk
+          if-no-files-found: warn
+
+      - name: Upload armeabi-v7a APK (older 32-bit phones)
+        uses: actions/upload-artifact@v4
+        with:
+          name: turf-ledger-armeabi-v7a-debug
+          # Tauri's Android build (via cargo-mobile2) names the armv7 flavor
+          # "arm", not the literal ABI string "armeabi-v7a" — confirmed from
+          # a real build's Gradle variant name ("armDebug") reported at
+          # https://github.com/tauri-apps/cargo-mobile2/issues/290. The
+          # app-arm-*.apk pattern is the one expected to actually match;
+          # *armeabi*.apk is kept only in case a future Tauri version
+          # renames the flavor to match the real ABI string.
+          path: |
+            src-tauri/gen/android/app/build/outputs/apk/**/app-arm-*.apk
+            src-tauri/gen/android/app/build/outputs/apk/**/*armeabi*.apk
+          if-no-files-found: warn
+
+      - name: Upload x86_64 APK (64-bit emulators)
+        uses: actions/upload-artifact@v4
+        with:
+          name: turf-ledger-x86_64-debug
+          path: src-tauri/gen/android/app/build/outputs/apk/**/*x86_64*.apk
+          if-no-files-found: warn
+
+      - name: Upload x86 APK (32-bit emulators)
+        uses: actions/upload-artifact@v4
+        with:
+          name: turf-ledger-x86-debug
+          path: |
+            src-tauri/gen/android/app/build/outputs/apk/**/*x86*.apk
+            !src-tauri/gen/android/app/build/outputs/apk/**/*x86_64*.apk
+          if-no-files-found: warn
+
+      # Safety net: every APK the build produced, in one place. Kept as
+      # if-no-files-found: error so the job still fails loudly if the build
+      # produced nothing at all, even if one of the four specific patterns
+      # above happened to miss a real file due to a naming difference.
+      - name: Upload all APKs (fallback)
+        uses: actions/upload-artifact@v4
+        with:
+          name: turf-ledger-android-debug-all
+          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+
+# ---------------------------------------------------------------------------
+# RELEASE SIGNING (not implemented — stub for later)
+# ---------------------------------------------------------------------------
+# To produce a signed release .aab for the Play Store instead of a debug
+# APK, once `gen/android` has been generated and inspected at least once:
+#
+#   1. Generate a release keystore once, locally:
+#        keytool -genkeypair -v -keystore release.jks -keyalg RSA \
+#          -keysize 2048 -validity 10000 -alias turf-ledger
+#      Keep release.jks and its passwords out of the repo entirely.
+#
+#   2. Add these as repo secrets (Settings → Secrets and variables → Actions):
+#        ANDROID_KEYSTORE_BASE64   (base64 -w0 release.jks)
+#        ANDROID_KEYSTORE_PASSWORD
+#        ANDROID_KEY_ALIAS
+#        ANDROID_KEY_PASSWORD
+#
+#   3. Before the build step, decode the keystore and point Gradle's signing
+#      config at it — the exact property names depend on the signing config
+#      Tauri's Android template generates into
+#      `src-tauri/gen/android/app/build.gradle.kts`, which doesn't exist in
+#      this repo yet (see docs/android-port-notes.md) — inspect that file
+#      after the first `tauri android init` run and wire the four secrets
+#      above into it (typically via a `keystore.properties` file read from
+#      `build.gradle.kts`) rather than guessing the property names blind.
+#
+#   4. Swap the build step to `bunx tauri android build --aab` (release,
+#      not `--debug --apk`) and upload the `.aab` from
+#      `app/build/outputs/bundle/release/` instead.
