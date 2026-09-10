@@ -248,11 +248,11 @@ export function periodStats(
   // Without this, collected (which is tax-inclusive) drifts away from
   // revenue + tax by exactly the GST charged on taxed bookings/sales.
   const bookingsTax = bookings.reduce(
-    (n, b) => n + Math.max(0, bookingGrossTotal(b) - rupees(b.total_amount)),
+    (n, b) => n + Math.max(0, bookingGrossTotal(b, appSettings) - rupees(b.total_amount)),
     0,
   );
   const snacksTax = sales.reduce(
-    (n, s) => n + Math.max(0, snackSaleGrossTotal(s) - rupees(s.total)),
+    (n, s) => n + Math.max(0, snackSaleGrossTotal(s, appSettings) - rupees(s.total)),
     0,
   );
   // Money the customer actually handed over against a running tab in this
@@ -268,10 +268,11 @@ export function periodStats(
     // while the remainder is a tab charge, which would be counted again as
     // tabCollected once the tab is paid. bookingCashCollected strips that out.
     bookings.reduce((n, b) => n + bookingCashCollected(b, entries), 0) +
-    sales.reduce((n, s) => n + snackSaleCollected(s), 0) +
+    sales.reduce((n, s) => n + snackSaleCollected(s, appSettings), 0) +
     tabCollected;
   const spend = expenses.reduce((n, e) => n + rupees(e.amount), 0);
-  const dues = billsDues + bookings.reduce((n, b) => n + bookingDue(b, entries), 0);
+  const dues =
+    billsDues + bookings.reduce((n, b) => n + bookingDue(b, entries, appSettings), 0);
 
   // Tax collected is money passed through to the government, not the
   // business's own earnings — profit is based on net (pre-tax) revenue so
@@ -371,7 +372,6 @@ export function profitAndLoss(src: Sources, keys: string[]) {
       key: k,
       month: monthLabel(k),
       Revenue: s.revenue,
-      NetRevenue: s.netRevenue,
       Tax: s.tax,
       Expenses: s.expenses,
       Profit: s.profit,

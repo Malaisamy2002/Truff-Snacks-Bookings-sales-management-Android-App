@@ -986,9 +986,12 @@ export function TurfTab() {
                                 Type: "Turf",
                                 Item: `${b.slot_name} slot`,
                                 Qty: b.hours,
+                                // `??`, not `||` — see Finding #3: a
+                                // genuinely comped turf_amount of 0 must
+                                // export as 0.
                                 Amount: merged
                                   ? 0
-                                  : b.turf_amount || b.hours * b.rate_per_hour * (b.courts ?? 1),
+                                  : (b.turf_amount ?? b.hours * b.rate_per_hour * (b.courts ?? 1)),
                                 Discount: merged ? 0 : b.discount,
                                 "Grand total": merged ? 0 : bookingGrossTotal(b),
                                 Advance: merged ? 0 : b.advance_paid,

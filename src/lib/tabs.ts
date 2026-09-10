@@ -104,13 +104,6 @@ export function useTabSummaries() {
   return map;
 }
 
-/** Open tab balance for one customer (0 when they have no tab). */
-export function useTabBalance(name: string | null, phone: string | null) {
-  const summaries = useTabSummaries();
-  if (!name && !phone) return 0;
-  return summaries.get(tabKey(name, phone))?.balance ?? 0;
-}
-
 /** Finds an open tab or opens a new one, returning its id. */
 export async function ensureTab(name: string, phone: string | null) {
   const key = tabKey(name, phone);

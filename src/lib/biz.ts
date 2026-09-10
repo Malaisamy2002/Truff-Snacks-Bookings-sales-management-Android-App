@@ -235,21 +235,35 @@ export function freezeTax(
   return { taxable: base, taxAmount, taxLines: lines, gross: base + taxAmount };
 }
 
-/** Tax-inclusive total for any record with a taxable amount + tax snapshot. */
-export function grossWithTax(taxable: number, rec: TaxSnapshot): number {
+/** Tax-inclusive total for any record with a taxable amount + tax snapshot.
+ * `settings` defaults to the live app settings (correct for receipts, tabs,
+ * and any other UI that always wants "right now"'s tax rate), but a caller
+ * that's aggregating under an EXPLICIT settings object — e.g. periodStats()
+ * previewing a different tax rate, or a hand-computed audit fixture — must
+ * pass it through here too. Silently falling back to readAppSettings() in
+ * that case would tax bills correctly (they get the caller's settings) while
+ * taxing turf bookings/snack sales at whatever the LIVE global settings
+ * happen to be — a real, easy-to-miss mismatch, not just a test artifact. */
+export function grossWithTax(
+  taxable: number,
+  rec: TaxSnapshot,
+  settings: Parameters<typeof taxBreakdown>[1] = readAppSettings(),
+): number {
   const base = rupees(taxable);
   if (typeof rec.tax_amount === "number") return base + rupees(rec.tax_amount);
-  return base + taxBreakdown(base, readAppSettings()).taxAmount;
+  return base + taxBreakdown(base, settings).taxAmount;
 }
 
-/** Tax lines to print for any record — frozen when present, else live. */
+/** Tax lines to print for any record — frozen when present, else live.
+ * Same `settings` threading as grossWithTax(), for the same reason. */
 export function taxLinesWithFallback(
   taxable: number,
   rec: TaxSnapshot,
+  settings: Parameters<typeof taxBreakdown>[1] = readAppSettings(),
 ): { label: string; value: number }[] {
   if (rec.tax_lines) return rec.tax_lines;
   if (typeof rec.tax_amount === "number") return [];
-  return taxBreakdown(rupees(taxable), readAppSettings()).lines;
+  return taxBreakdown(rupees(taxable), settings).lines;
 }
 
 /** A turf booking's taxable (post-discount, pre-tax) amount. */
@@ -264,7 +278,12 @@ export const bookingTaxable = (
   // total_amount can't understate the bill; total_amount is the fallback for
   // rows that carry no slot/snacks detail.
   const courts = b.courts ?? 1;
-  const turf = b.turf_amount || (b.hours ?? 0) * (b.rate_per_hour ?? 0) * courts;
+  // `??`, not `||` — a legitimately comped/free booking can have
+  // turf_amount === 0 on purpose, which must be respected as-is rather than
+  // silently replaced by a recomputed (and possibly wrong, for custom
+  // 15/30/45-min rates) non-zero value. Only a genuinely missing value
+  // (null/undefined, e.g. a pre-turf_amount legacy row) should fall back.
+  const turf = b.turf_amount ?? (b.hours ?? 0) * (b.rate_per_hour ?? 0) * courts;
   const derived = turf + (b.snacks_total ?? 0) - (b.discount ?? 0);
   if (derived > 0) return rupees(derived);
   return Math.max(0, rupees(b.total_amount ?? 0));
@@ -279,13 +298,21 @@ type TurfBooking_ = {
   courts: number;
 };
 
-/** A booking's tax-inclusive grand total — the figure its receipt prints. */
-export const bookingGrossTotal = (b: Parameters<typeof bookingTaxable>[0] & TaxSnapshot): number =>
-  grossWithTax(bookingTaxable(b), b);
+/** A booking's tax-inclusive grand total — the figure its receipt prints.
+ * Optional `settings` passes through to grossWithTax() for callers (like
+ * periodStats()) aggregating under an explicit settings object rather than
+ * the live app settings. */
+export const bookingGrossTotal = (
+  b: Parameters<typeof bookingTaxable>[0] & TaxSnapshot,
+  settings?: Parameters<typeof taxBreakdown>[1],
+): number => grossWithTax(bookingTaxable(b), b, settings);
 
-/** A snack sale's tax-inclusive grand total — the figure its receipt prints. */
-export const snackSaleGrossTotal = (s: { total: number } & TaxSnapshot): number =>
-  grossWithTax(s.total, s);
+/** A snack sale's tax-inclusive grand total — the figure its receipt prints.
+ * Optional `settings`, same reason as bookingGrossTotal(). */
+export const snackSaleGrossTotal = (
+  s: { total: number } & TaxSnapshot,
+  settings?: Parameters<typeof taxBreakdown>[1],
+): number => grossWithTax(s.total, s, settings);
 
 /** What's actually been paid toward a bill's tax-inclusive total — full
  * gross amount once marked "paid", otherwise whatever's been recorded. */

@@ -200,7 +200,10 @@ export function buildMergedItems(
 ): MergedItemsResult {
   const items: BillItem[] = [];
   for (const b of bookings) {
-    const turfGross = b.turf_amount || b.total_amount + (Number(b.discount) || 0);
+    // `??`, not `||` — see Finding #3: a genuinely comped turf_amount of 0
+    // must be respected, only a missing (null/undefined) legacy value should
+    // fall back to the reconstructed gross.
+    const turfGross = b.turf_amount ?? b.total_amount + (Number(b.discount) || 0);
     items.push({
       item: `Turf · ${b.slot_name} (${b.booking_no})`,
       qty: b.hours || 1,

@@ -256,31 +256,57 @@ const srcSep = {
 
 const grossOf = (net: number) => net + net * TAX;
 
+// None of k1/k2/k4/k5/k6 or s1/s2/s3 carry a frozen tax_amount (that's only
+// set by ops.ts's freezeTax() at real creation time — these are seeded
+// directly). With GST switched on for this whole dataset, biz.ts's
+// grossWithTax() falls back to taxing them live too, exactly like a legacy
+// pre-snapshot bill would (calculation-rules.md §4: "wherever GST is
+// switched on" isn't bills-only — k7/s4's frozen-tax regression below is
+// the OTHER half of that same rule). k3 is cancelled and k4 is merged, so
+// neither is financial and neither is taxed.
 const expectedJul = {
   billsRevenue: 1000 + 500,
-  tax: (1000 + 500) * TAX,
+  // Bills' tax, plus k1+k2's and s1+s2's own live tax fallback.
+  tax: (1000 + 500) * TAX + (1200 + 800) * TAX + (300 + 200) * TAX,
   turfRevenue: 1200 + 800, // k3 cancelled, k4 merged -> both excluded
   snacksRevenue: 300 + 200,
   netRevenue: 1500 + 2000 + 500,
-  revenue: 1500 + 2000 + 500 + 1500 * TAX,
-  collected: grossOf(1000) /* b1 */ + 0 /* b3 */ + (400 + 800) /* advances */ + 500 /* snacks */,
+  revenue: 1500 + 2000 + 500 + ((1000 + 500) * TAX + (1200 + 800) * TAX + (300 + 200) * TAX),
+  collected:
+    grossOf(1000) /* b1 */ +
+    0 /* b3 */ +
+    (400 + 800) /* advances: bookingCashCollected reads advance_paid raw, never tax-inclusive */ +
+    (grossOf(300) + grossOf(200)) /* snacks: snackSaleCollected IS tax-inclusive */,
   expenses: 400,
   profit: 4000 - 400,
-  dues: grossOf(500) - 0 /* b3 */ + (1200 - 400) + (800 - 800),
+  dues: grossOf(500) - 0 /* b3 */ + (grossOf(1200) - 400) + (grossOf(800) - 800),
   snackProfit: 180,
 };
 
 const expectedAug = {
   billsRevenue: 2000 + 1500,
-  tax: (2000 + 1500) * TAX,
+  // Bills' tax, plus k5+k6's live tax fallback. s3's own tax is NOT 450 *
+  // TAX (103.5): taxBreakdown() rounds each tax LINE to a whole rupee
+  // before summing, and 5% of 450 is 22.5 -> rupees() rounds that one line
+  // up to 23 (18% GST line stays an exact 81), so s3's tax is 81 + 23 = 104,
+  // not 103.5. This is the same per-line rounding taxBreakdown()'s own
+  // "sum rounded parts, don't round the sum" rule uses everywhere else
+  // (calculation-rules.md rule 3) — it just isn't visible on the other
+  // round-hundred amounts in this fixture because 5%/18% of a multiple of
+  // 100 is already a whole rupee.
+  tax: (2000 + 1500) * TAX + (1000 + 1500) * TAX + 104,
   turfRevenue: 1000 + 1500,
   snacksRevenue: 450,
   netRevenue: 3500 + 2500 + 450,
-  revenue: 3500 + 2500 + 450 + 3500 * TAX,
-  collected: 500 /* b2 partial */ + grossOf(1500) /* b4 */ + 1500 /* advance */ + 450,
+  revenue: 3500 + 2500 + 450 + ((2000 + 1500) * TAX + (1000 + 1500) * TAX + 104),
+  collected:
+    500 /* b2 partial */ +
+    grossOf(1500) /* b4 */ +
+    1500 /* advance (raw, not tax-inclusive) */ +
+    (450 + 104) /* s3: snackSaleCollected IS tax-inclusive, 450 + its 104 tax */,
   expenses: 400,
   profit: 6450 - 400,
-  dues: grossOf(2000) - 500 /* b2 */ + (1000 - 0) + 0,
+  dues: grossOf(2000) - 500 /* b2 */ + (grossOf(1000) - 0) + (grossOf(1500) - 1500),
   snackProfit: 150,
 };
 

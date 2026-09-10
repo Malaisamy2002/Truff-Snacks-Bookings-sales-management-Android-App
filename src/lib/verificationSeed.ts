@@ -26,15 +26,19 @@ import type { ReportPdfDoc, ReportTable } from "./report-pdf";
  * real data.
  *
  * Seeding also turns on GST 18% + a 5% service charge, because the
- * hand-computed expectations in verify-math.ts (Jul revenue ₹5,345,
- * Aug revenue ₹8,305 …) are computed under that tax setup.
+ * hand-computed expectations in verify-math.ts are computed under that tax
+ * setup. GST being ON applies to more than the bills here: none of this
+ * dataset's turf bookings/snack sales carry a frozen tax_amount (that's only
+ * set by ops.ts's freezeTax() at real creation time), so biz.ts's
+ * grossWithTax() taxes them live too, same as a legacy pre-snapshot bill
+ * would (calculation-rules.md §4).
  *
  * Expected headline figures (from scripts/verify-math.ts):
- *   July    — revenue 4345, collected 2930, expenses 400, profit 3600,
- *             dues 1415, tax 345
- *   August  — revenue 7255, collected 4295, expenses 400, profit 6050,
- *             dues 2960, tax 805
- *   Combined revenue 11600.
+ *   July    — revenue 4920, collected 3045, expenses 400, profit 3600,
+ *             dues 1875, tax 920
+ *   August  — revenue 7934, collected 4399, expenses 400, profit 6050,
+ *             dues 3535, tax 1484
+ *   Combined revenue 12854.
  */
 
 const VER_PREFIX = "VER-";
@@ -431,32 +435,50 @@ export async function clearVerificationData() {
 const TAX = 0.23;
 const grossOf = (net: number) => net + net * TAX;
 
+// TB-1/TB-2/TB-5/TB-6 and SB-0001/0002/0003 carry no frozen tax_amount —
+// with GST on, biz.ts's grossWithTax() taxes them live too, same rule as a
+// legacy pre-snapshot bill (calculation-rules.md §4). TB-3 is cancelled and
+// TB-4 is merged, so neither is financial and neither is taxed.
 const EXPECTED_JUL = {
   billsRevenue: 1000 + 500,
-  tax: (1000 + 500) * TAX,
+  // Bills' tax, plus TB-1+TB-2's and SB-0001+SB-0002's own live tax fallback.
+  tax: (1000 + 500) * TAX + (1200 + 800) * TAX + (300 + 200) * TAX,
   turfRevenue: 1200 + 800, // TB-3 cancelled, TB-4 merged -> both excluded
   snacksRevenue: 300 + 200,
   netRevenue: 1500 + 2000 + 500,
-  revenue: 1500 + 2000 + 500 + 1500 * TAX,
+  revenue: 1500 + 2000 + 500 + ((1000 + 500) * TAX + (1200 + 800) * TAX + (300 + 200) * TAX),
   collected:
-    grossOf(1000) /* INV-1 */ + 0 /* INV-3 */ + (400 + 800) /* advances */ + 500 /* snacks */,
+    grossOf(1000) /* INV-1 */ +
+    0 /* INV-3 */ +
+    (400 + 800) /* advances: bookingCashCollected reads advance_paid raw, never tax-inclusive */ +
+    (grossOf(300) + grossOf(200)) /* snacks: snackSaleCollected IS tax-inclusive */,
   expenses: 400,
   profit: 4000 - 400,
-  dues: grossOf(500) - 0 /* INV-3 */ + (1200 - 400) + (800 - 800),
+  dues: grossOf(500) - 0 /* INV-3 */ + (grossOf(1200) - 400) + (grossOf(800) - 800),
   snackProfit: 180,
 };
 
 const EXPECTED_AUG = {
   billsRevenue: 2000 + 1500,
-  tax: (2000 + 1500) * TAX,
+  // Bills' tax, plus TB-5+TB-6's live tax fallback. SB-0003's own tax is NOT
+  // 450 * TAX (103.5): taxBreakdown() rounds each tax LINE to a whole rupee
+  // before summing, and 5% of 450 is 22.5 -> rupees() rounds that one line
+  // up to 23 (18% GST stays an exact 81), so SB-0003's tax is 81 + 23 = 104,
+  // not 103.5 — invisible on the other round-hundred amounts in this
+  // dataset because 5%/18% of a multiple of 100 is already a whole rupee.
+  tax: (2000 + 1500) * TAX + (1000 + 1500) * TAX + 104,
   turfRevenue: 1000 + 1500,
   snacksRevenue: 450,
   netRevenue: 3500 + 2500 + 450,
-  revenue: 3500 + 2500 + 450 + 3500 * TAX,
-  collected: 500 /* INV-2 partial */ + grossOf(1500) /* INV-4 */ + 1500 /* advance */ + 450,
+  revenue: 3500 + 2500 + 450 + ((2000 + 1500) * TAX + (1000 + 1500) * TAX + 104),
+  collected:
+    500 /* INV-2 partial */ +
+    grossOf(1500) /* INV-4 */ +
+    1500 /* advance (raw, not tax-inclusive) */ +
+    (450 + 104) /* SB-0003: snackSaleCollected IS tax-inclusive, 450 + its 104 tax */,
   expenses: 400,
   profit: 6450 - 400,
-  dues: grossOf(2000) - 500 /* INV-2 */ + (1000 - 0) + 0,
+  dues: grossOf(2000) - 500 /* INV-2 */ + (grossOf(1000) - 0) + (grossOf(1500) - 1500),
   snackProfit: 150,
 };
 

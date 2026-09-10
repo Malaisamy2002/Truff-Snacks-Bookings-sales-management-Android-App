@@ -72,8 +72,16 @@ export function CustomerDetailDialog({ name, phone, onOpenChange }: Props) {
     const mySales = sales.filter((s) => same(s.customer_name, name));
     const myFinancialSales = mySales.filter(isFinancialSale);
 
+    // Pre-tax throughout, on purpose — matches customerLifetimeStats()'s
+    // totalSpend (billsSpend + turfSpend + snacksSpend, all pre-tax). This
+    // used to add tax-INCLUSIVE bill totals (billGrossTotal) to pre-tax
+    // booking/sale totals in the same sum, which inflated this dialog's
+    // figure above the customer's totalSpend shown everywhere else
+    // (Top Customers, dashboard rollups, Excel export) by exactly the tax
+    // on that customer's bills. Tax-inclusive figures still belong in
+    // `dues` below — outstanding balances are correctly tax-inclusive.
     const spent =
-      myBills.reduce((s, b) => s + billGrossTotal(b), 0) +
+      myBills.reduce((s, b) => s + (Number(b.total) || 0), 0) +
       myFinancialBookings.reduce((s, b) => s + (Number(b.total_amount) || 0), 0) +
       myFinancialSales.reduce((s, b) => s + (Number(b.total) || 0), 0);
 

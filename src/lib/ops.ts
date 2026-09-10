@@ -135,6 +135,12 @@ export const priceForDuration = (r: TurfRate, totalMinutes: number) => {
         ? remainderCustom
         : (hourPrice * remainder) / 60
       : 0;
+  // Whole rupee, rounded once — same policy as every other payable amount
+  // in the app (see money.ts). This used to round to the nearest paisa
+  // (`Math.round(x * 100) / 100`), which let a turf booking's total_amount
+  // carry paise while every other money path (calculator rows, snack
+  // sales, bills) was already whole-rupee-only — the one inconsistent
+  // corner of that policy.
   return rupees(wholeHours * hourPrice + remainderPrice);
 };
 

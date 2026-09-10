@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { bookingGrossTotal, formatDMY, money, snackSaleGrossTotal } from "@/lib/biz";
+import { rupees } from "@/lib/money";
 import { isFinancialBooking } from "@/lib/analytics";
 import { usePrintSettings } from "@/lib/print";
 import { snackSaleReceipt, printReceipt } from "@/lib/receipt";
@@ -155,7 +156,10 @@ export function SnacksTab() {
       return {
         item_name: l.item.item_name,
         qty: l.qty,
-        unit_price: l.qty ? share / l.qty : share,
+        // rupees() at the source, defense in depth — `amount` (share) was
+        // already whole, but this display field could otherwise store a
+        // fractional rupee (e.g. a ₹51 share split across 2 units → 25.5).
+        unit_price: l.qty ? rupees(share / l.qty) : share,
         cost_price: l.item.cost_price,
         amount: share,
       };

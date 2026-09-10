@@ -4,8 +4,7 @@ import { isFinancialBooking } from "./analytics";
 import { billDue, bookingDue } from "./dues";
 import { tabBalanceOf, tabKey, type TabEntry } from "./tabs";
 import { unmergeBill } from "./merge";
-import { hasCustomNumbering, nextCustomInvoiceNo, readAppSettings, taxBreakdown } from "./settings";
-import { db, newId, nextInvoiceNo, nowIso, sortBy, type BillRow, type ExpenseRow } from "./localdb";
+import { db, newId, nowIso, sortBy, type BillRow, type ExpenseRow } from "./localdb";
 import { rowsForYears, useYearWindow, type YearTable } from "./years";
 
 /** Instant-paint cache: reads hydrate from localStorage, then refresh from IndexedDB. */
@@ -121,75 +120,6 @@ export function useDeleteHistory() {
       else await db.history_entries.clear();
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["history"] }),
-  });
-}
-
-export function useCreateBill() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: {
-      customer_name: string;
-      customer_phone: string;
-      items: BillItem[];
-      subtotal: number;
-      discount: number;
-      total: number;
-      status: BillStatus;
-      amount_paid: number;
-      /** Optional: e.g. "On tab" when the due moves to a running customer tab. */
-      payment_mode?: string | null;
-      /** Optional frozen tax carried over from a bill being duplicated, so a
-       * copy totals exactly like its original even if GST changed since. */
-      tax_amount?: number | undefined;
-      tax_lines?: { label: string; value: number }[] | undefined;
-    }) => {
-      const appSettings = readAppSettings();
-      let invoiceNo: string;
-      if (hasCustomNumbering(appSettings)) {
-        // `invoice_no` is an indexed field, so read just that column off the
-        // index instead of materialising every full bill row via toArray().
-        const existing = await db.bills.orderBy("invoice_no").keys();
-        invoiceNo = nextCustomInvoiceNo(existing as string[], appSettings);
-      } else {
-        invoiceNo = await nextInvoiceNo();
-      }
-
-      const now = nowIso();
-      // Tax is computed ONCE here, from the settings in effect at creation,
-      // and stored on the bill — so a later GST rate/toggle change can never
-      // move this invoice's Grand Total or its reprint (lib/biz.ts
-      // billGrossTotal).
-      const fresh = taxBreakdown(payload.total, appSettings);
-      const carried = payload.tax_lines !== undefined || payload.tax_amount !== undefined;
-      const taxAmount = carried ? (payload.tax_amount ?? 0) : fresh.taxAmount;
-      const taxLines = carried ? (payload.tax_lines ?? []) : fresh.lines;
-      const bill = {
-        id: newId(),
-        invoice_no: invoiceNo,
-        customer_name: payload.customer_name,
-        customer_phone: payload.customer_phone || null,
-        items: payload.items,
-        subtotal: payload.subtotal,
-        discount: payload.discount,
-        total: payload.total,
-        tax_amount: taxAmount,
-        tax_lines: taxLines,
-        status: payload.status,
-        amount_paid: payload.amount_paid,
-        payment_mode: payload.payment_mode ?? null,
-        bill_date: now,
-        created_at: now,
-      };
-      await db.bills.add(bill);
-      await db.customers.add({
-        id: newId(),
-        name: payload.customer_name,
-        phone: payload.customer_phone || null,
-        created_at: now,
-      });
-      return { ...bill, items: payload.items, status: payload.status as BillStatus } as Bill;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["bills"] }),
   });
 }
 

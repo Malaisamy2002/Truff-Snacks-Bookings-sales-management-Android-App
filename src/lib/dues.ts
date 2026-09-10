@@ -97,12 +97,19 @@ export type DueBooking = Pick<TurfBooking, "id" | "status" | "advance_paid"> &
   Parameters<typeof bookingTaxable>[0] &
   TaxSnapshot;
 
-/** Money still owed on a turf booking itself (0 once merged / on the tab). */
-export function bookingDue(b: DueBooking, entries: TabEntry[] = []) {
+/** Money still owed on a turf booking itself (0 once merged / on the tab).
+ * Optional `settings` passes through to bookingGrossTotal() for callers
+ * (like periodStats()) aggregating under an explicit settings object rather
+ * than the live app settings — see bookingGrossTotal()'s doc comment. */
+export function bookingDue(
+  b: DueBooking,
+  entries: TabEntry[] = [],
+  settings?: Parameters<typeof bookingGrossTotal>[1],
+) {
   if (!isFinancialBooking(b)) return 0;
   // Tax-inclusive, exactly like billDue() via billGrossTotal(): what the
   // booking's receipt printed as Grand Total, less what was collected.
-  const raw = bookingGrossTotal(b) - num(b.advance_paid);
+  const raw = bookingGrossTotal(b, settings) - num(b.advance_paid);
   const onTab = netTabAmountFor(entries, TAB_REF_TURF_BOOKING, b.id);
   return Math.max(0, round2(raw - onTab));
 }
@@ -340,11 +347,13 @@ export function billCollected(bill: Bill) {
   return bill.status === "paid" ? round2(billGrossTotal(bill)) : rupees(bill.amount_paid);
 }
 
-/** Money actually received for a snack sale (an "On tab" sale collects nothing). */
+/** Money actually received for a snack sale (an "On tab" sale collects
+ * nothing). Optional `settings`, same reason as bookingDue(). */
 export function snackSaleCollected(
   s: Pick<SnackSale, "payment_mode" | "total" | "tax_amount" | "tax_lines">,
+  settings?: Parameters<typeof snackSaleGrossTotal>[1],
 ) {
-  return s.payment_mode === TAB_PAYMENT_MODE ? 0 : snackSaleGrossTotal(s);
+  return s.payment_mode === TAB_PAYMENT_MODE ? 0 : snackSaleGrossTotal(s, settings);
 }
 
 /** Human label for a snack sale's tab/merge state (used by the Snacks list). */
