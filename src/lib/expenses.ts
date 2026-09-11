@@ -19,6 +19,7 @@ import {
   isAndroid,
   isDesktop,
   readAppDocument,
+  removeAppDocument,
   saveExportFile,
   saveToAppDocuments,
 } from "./desktop";
@@ -293,10 +294,10 @@ export async function uploadReceipt(file: File, date: string = dayKey(new Date()
   const bytes = new Uint8Array(await stored.arrayBuffer());
 
   // Record a hash of exactly what's being stored, right now, before it's
-  // written anywhere — this is what `verifyReceipts()` in
-  // receipts-share.ts later compares the on-disk bytes against, so it can
-  // catch corruption that happens on-disk between captures, not just
-  // corruption introduced by a later export/import round-trip.
+  // written anywhere — carried alongside the photo in the Telegram full
+  // backup (telegram-backup.ts) so a corrupted byte introduced on-disk
+  // between capture and a later backup/restore is caught, not silently
+  // carried forward as "valid".
   const sha256 = await sha256Hex(bytes);
   await db.receipt_hashes.put({ path, sha256, created_at: nowIso() });
 
@@ -316,6 +317,23 @@ export async function uploadReceipt(file: File, date: string = dayKey(new Date()
     await saveToAppDocuments(path, bytes);
   }
   return path;
+}
+
+/**
+ * Removes a photo `uploadReceipt` wrote straight to the database but that
+ * never ended up attached to a saved expense — the person picked a
+ * different photo before submitting the form, or closed it without
+ * submitting at all. Clears every copy `uploadReceipt` could have made:
+ * `receipts`, `receipt_hashes`, and — on desktop/Android — the on-disk file
+ * under `Documents/TurfApp`. The disk removal is best-effort and never
+ * throws (see `removeAppDocument`'s doc comment), so a failed native fs
+ * call there can't block the Dexie cleanup, which is the part that matters
+ * for `db.receipts` no longer holding a photo nothing points to.
+ */
+export async function deleteReceipt(path: string): Promise<void> {
+  await db.receipts.delete(path);
+  await db.receipt_hashes.delete(path);
+  if (isDesktop()) await removeAppDocument(path);
 }
 
 /**
@@ -403,15 +421,18 @@ export const receiptUrl = openReceipt;
  * Turns an `openReceipt` failure into a toast message. When the failure is
  * specifically "the photo isn't on this device" (see
  * `RECEIPT_NOT_FOUND_MESSAGE`), the message names the expense's reference
- * number — the same `expense_no` used as the join key in
- * `receipts-share.ts`'s manifest — so the person knows which physical
- * receipt or archived photo to look for, instead of a bare "not found".
+ * number so the person knows which receipt to look for, and points at the
+ * two ways a photo can actually come back: restoring the single-file `.db`
+ * backup (Settings → Backup & restore) or the Telegram full backup
+ * (Settings → Cloud backup (Telegram)) — both embed every receipt photo, so
+ * either one can recover it if it was ever backed up from a device that had
+ * it. There's no separate "import receipts" step anymore; a single restore
+ * covers photos too (see backup.ts / telegram-backup.ts).
  * Any other error (e.g. a genuine Android save-plugin failure) is passed
  * through unchanged, since it isn't a missing-photo case.
  */
 export function missingReceiptMessage(error: Error, expenseNo: string | null): string {
   if (error.message !== RECEIPT_NOT_FOUND_MESSAGE) return error.message;
   const label = expenseNo ? `Receipt ${expenseNo}` : "This receipt";
-  const lookup = expenseNo ? expenseNo : "this expense";
-  return `${label} — photo not on this device. Import receipts (.zip) or check the archive for ${lookup}.`;
+  return `${label} — photo not on this device. Restoring a backup that has it (Settings → Backup & restore, or Cloud backup (Telegram)) will bring it back.`;
 }

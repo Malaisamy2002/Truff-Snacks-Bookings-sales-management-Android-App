@@ -30,7 +30,6 @@ describe("normalizeLayout after the registry change", () => {
   const settingsOrder = [
     "settings.telegram",
     "settings.backup",
-    "settings.receipts",
     "settings.turf-rates",
     "settings.snack-items",
     "settings.billing",

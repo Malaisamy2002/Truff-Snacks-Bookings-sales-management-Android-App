@@ -17,7 +17,6 @@ import {
   Users,
   Archive as ArchiveIcon,
   Download as DownloadIcon,
-  Images as ImagesIcon,
   Send as SendIcon,
   LayoutDashboard,
   AlertTriangle,
@@ -78,7 +77,6 @@ import { PrintSettingsCard } from "./PrintSettingsCard";
 import { InvoiceBrandingCard } from "./InvoiceBrandingCard";
 import { BackupCard } from "./BackupCard";
 import { TelegramBackupCard } from "./TelegramBackupCard";
-import { ReceiptsCard } from "./ReceiptsCard";
 import { MonthlyReportCard } from "./MonthlyReportCard";
 import { ArchiveCard } from "./ArchiveCard";
 import { ClearAllDataCard } from "./ClearAllDataCard";
@@ -663,16 +661,6 @@ export function SettingsTab() {
               icon={DownloadIcon}
             >
               <BackupCard />
-            </SettingsSection>
-          </LayoutSection>
-          <LayoutSection id="settings.receipts">
-            <SettingsSection
-              value="receipts"
-              eyebrow="DATA SAFETY"
-              title="Receipts sharing"
-              icon={ImagesIcon}
-            >
-              <ReceiptsCard />
             </SettingsSection>
           </LayoutSection>
           <LayoutSection id="settings.turf-rates">

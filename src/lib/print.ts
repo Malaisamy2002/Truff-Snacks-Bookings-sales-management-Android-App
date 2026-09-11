@@ -132,6 +132,22 @@ export type PrintSettings = {
   /** Open the receipt in a normal browser tab instead of sending it straight
    * to the print dialog — lets the person double-check layout first. */
   previewBeforePrint: boolean;
+  /** "classic" = the original plain ruled-line layout (default, unchanged).
+   * "premium" = the boxed/colored letterhead-style layout (navy+gold A4,
+   * compact A5, boxed color/B&W thermal receipts, condensed 58mm POS slip)
+   * — see receipt-premium.ts. Falls back to "classic" for any paper size
+   * the premium renderer doesn't have a dedicated layout for (e.g. Letter). */
+  templateStyle: "classic" | "premium";
+  /** UPI ID (VPA) used to render the "Scan & Pay" QR code on the premium
+   * A4/A5/color-roll layouts. Blank = QR/payment box is not drawn. */
+  upiId: string;
+  /** Color scheme for the premium 80mm layout only — real thermal rolls are
+   * monochrome hardware ("bw", the default and the safer choice for actual
+   * printing); "color" is for a shop with a genuine color receipt printer,
+   * or for a PDF/WhatsApp copy that's meant to be viewed on a screen rather
+   * than printed. A4/A5 are always full color; 58/50mm always render in
+   * plain black (too narrow for the boxed color treatment to read well). */
+  thermalColorMode: "bw" | "color";
 };
 
 /** A branding image kept small (resized client-side before storage) with its
@@ -164,6 +180,9 @@ export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
   lineSpacing: "normal",
   cutFeedMm: 0,
   previewBeforePrint: false,
+  templateStyle: "classic",
+  upiId: "",
+  thermalColorMode: "bw",
 };
 
 const KEY = "ks:print-settings";
@@ -213,6 +232,14 @@ export function normalizePrintSettings(value: unknown): PrintSettings {
   const lineSpacing = LINE_SPACING_OPTIONS.some((item) => item.id === saved["lineSpacing"])
     ? (saved["lineSpacing"] as LineSpacingId)
     : DEFAULT_PRINT_SETTINGS.lineSpacing;
+  const templateStyle =
+    saved["templateStyle"] === "premium" || saved["templateStyle"] === "classic"
+      ? (saved["templateStyle"] as PrintSettings["templateStyle"])
+      : DEFAULT_PRINT_SETTINGS.templateStyle;
+  const thermalColorMode =
+    saved["thermalColorMode"] === "color" || saved["thermalColorMode"] === "bw"
+      ? (saved["thermalColorMode"] as PrintSettings["thermalColorMode"])
+      : DEFAULT_PRINT_SETTINGS.thermalColorMode;
 
   return {
     paper,
@@ -250,6 +277,9 @@ export function normalizePrintSettings(value: unknown): PrintSettings {
       saved["previewBeforePrint"],
       DEFAULT_PRINT_SETTINGS.previewBeforePrint,
     ),
+    templateStyle,
+    upiId: savedString(saved["upiId"], DEFAULT_PRINT_SETTINGS.upiId).slice(0, 80),
+    thermalColorMode,
   };
 }
 

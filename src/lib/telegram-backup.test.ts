@@ -72,6 +72,7 @@ describe("buildFullBackup()", () => {
   beforeEach(async () => {
     await db.expenses.clear();
     await db.receipts.clear();
+    await db.receipt_hashes.clear();
   });
 
   it("packs the manifest and the receipt photo bytes into one archive", async () => {
@@ -120,6 +121,7 @@ describe("restoreFullBackup()", () => {
   beforeEach(async () => {
     await db.expenses.clear();
     await db.receipts.clear();
+    await db.receipt_hashes.clear();
   });
 
   it("round-trips rows and photos back onto an empty device", async () => {
@@ -145,6 +147,64 @@ describe("restoreFullBackup()", () => {
     const result = await restoreFullBackup(archive, "merge");
     expect(result.filesRestored).toBe(0);
     expect(result.filesSkippedExisting).toBe(1);
+  });
+
+  it("restores receipt_hashes rows alongside the photos they fingerprint", async () => {
+    const { path } = await seedExpenseWithReceipt(new Uint8Array([5, 6, 7]));
+    await db.receipt_hashes.put({ path, sha256: "deadbeef", created_at: nowIso() });
+    const archive = (await buildFullBackup("Windows")).bytes;
+
+    await db.expenses.clear();
+    await db.receipts.clear();
+    await db.receipt_hashes.clear();
+
+    await restoreFullBackup(archive, "replace");
+    const hashRow = await db.receipt_hashes.get(path);
+    expect(hashRow?.sha256).toBe("deadbeef");
+  });
+
+  it("merge never overwrites a receipt_hashes row already on the device", async () => {
+    const { path } = await seedExpenseWithReceipt(new Uint8Array([5, 6, 7]));
+    await db.receipt_hashes.put({ path, sha256: "original-hash", created_at: nowIso() });
+    const archive = (await buildFullBackup("Windows")).bytes;
+
+    await db.receipt_hashes.put({ path, sha256: "already-here", created_at: nowIso() });
+    await restoreFullBackup(archive, "merge");
+    expect((await db.receipt_hashes.get(path))?.sha256).toBe("already-here");
+  });
+
+  it("preserves each photo's original created_at instead of the restore moment", async () => {
+    const originalCreatedAt = "2025-01-01T00:00:00.000Z";
+    const id = newId();
+    const path = `Receipts/2025-01-01/${id}.jpg`;
+    await db.expenses.add({
+      id,
+      expense_no: "TX-20250101-0001",
+      business: "Turf",
+      category: "Maintenance",
+      description: "Net repair",
+      note: null,
+      amount: 500,
+      spent_at: "2025-01-01",
+      receipt_path: path,
+      created_at: nowIso(),
+      updated_at: nowIso(),
+    } as never);
+    await db.receipts.put({
+      path,
+      blob: new Blob([new Uint8Array([3, 2, 1]).buffer as ArrayBuffer]),
+      created_at: originalCreatedAt,
+    });
+    const archive = (await buildFullBackup("Windows")).bytes;
+
+    await db.expenses.clear();
+    await db.receipts.clear();
+    // restoreFullBackup() restores the expense row itself (via
+    // restoreBackup(), "replace" mode) before it gets to the photo loop, so
+    // knownReceiptPaths already includes this path by the time it matters.
+    await restoreFullBackup(archive, "replace");
+    const restored = await db.receipts.get(path);
+    expect(restored?.created_at).toBe(originalCreatedAt);
   });
 
   it("refuses to write bytes that fail the manifest checksum", async () => {

@@ -325,6 +325,16 @@ export function PrintSettingsCard() {
                   placeholder="Rs"
                 />
               </SettingsField>
+              <SettingsField
+                label="UPI ID for Scan & Pay"
+                hint="Adds a UPI QR code to the premium A4/A5/80mm layouts. Leave blank to hide it."
+              >
+                <Input
+                  value={settings.upiId}
+                  onChange={(e) => set("upiId", e.target.value.slice(0, 80))}
+                  placeholder="yourshop@upi"
+                />
+              </SettingsField>
             </SettingsGrid>
           </SettingsGroup>
 
@@ -361,6 +371,20 @@ export function PrintSettingsCard() {
                 onCheckedChange={(v) => set("previewBeforePrint", v)}
                 disabled={isAndroid()}
               />
+              <SettingsSwitchRow
+                label="Premium boxed & colored layout"
+                hint="Two-tone letterhead style for A4/A5/80mm/58mm/50mm. Other paper sizes keep the plain layout."
+                checked={settings.templateStyle === "premium"}
+                onCheckedChange={(v) => set("templateStyle", v ? "premium" : "classic")}
+              />
+              {settings.templateStyle === "premium" && settings.paper === "80mm" && (
+                <SettingsSwitchRow
+                  label="Color on the 80mm premium layout"
+                  hint="Off (default) keeps it ink-safe black & white for real thermal printers; on renders it in full color for a color printer or a screen/WhatsApp copy."
+                  checked={settings.thermalColorMode === "color"}
+                  onCheckedChange={(v) => set("thermalColorMode", v ? "color" : "bw")}
+                />
+              )}
             </div>
           </SettingsGroup>
 

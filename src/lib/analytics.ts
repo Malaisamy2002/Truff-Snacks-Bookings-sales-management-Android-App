@@ -372,6 +372,7 @@ export function profitAndLoss(src: Sources, keys: string[]) {
       key: k,
       month: monthLabel(k),
       Revenue: s.revenue,
+      NetRevenue: s.netRevenue,
       Tax: s.tax,
       Expenses: s.expenses,
       Profit: s.profit,

@@ -1,7 +1,17 @@
 import { money, rupees } from "./money";
 import { readAppSettings, taxBreakdown } from "./settings";
+import { readPrintSettings } from "./print";
 
 export const BUSINESS_NAME = "Chennai Soccer & Sports School";
+
+/** Resolved shop name for anything that isn't the receipt PDF itself —
+ * WhatsApp share text, "copy bill text", history entries. Mirrors the
+ * `shopName || BUSINESS_NAME` fallback `receipt.ts` already uses, so a shop
+ * that has set its own name in Settings sees it everywhere, not just on the
+ * printed/PDF receipt. */
+function resolvedBusinessName(): string {
+  return readPrintSettings().shopName.trim() || BUSINESS_NAME;
+}
 
 export type CalcRow = {
   id: string;
@@ -138,7 +148,7 @@ export function historyEntryText(entry: HistoryEntry) {
       `${r.item || "Item"} — ${r.qty} ${r.unit ?? "kg"} × ${money(r.rate)} = ${money(r.total)}`,
   );
   return [
-    `${BUSINESS_NAME}`,
+    `${resolvedBusinessName()}`,
     shortDate(entry.created_at),
     ...lines,
     `Total: ${money(entry.total)}`,
@@ -154,7 +164,7 @@ export function billText(bill: Bill) {
   const paid = billPaidAmount(bill);
   const due = Math.max(0, gross - paid);
   return [
-    `${BUSINESS_NAME}`,
+    `${resolvedBusinessName()}`,
     `Bill ${bill.invoice_no} · ${formatDMY(bill.bill_date)}`,
     `Customer: ${bill.customer_name}`,
     "",

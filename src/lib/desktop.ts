@@ -143,6 +143,26 @@ export async function appDocumentExists(relativePath: string): Promise<boolean> 
   return exists(`${APP_DOCS_FOLDER}/${relativePath}`, { baseDir });
 }
 
+/**
+ * Deletes `<AppDocsBase>/TurfApp/<relativePath>` if it exists. A no-op
+ * (never throws) when the file is already gone, so callers cleaning up an
+ * orphan (e.g. `deleteReceipt` in expenses.ts) don't need to check
+ * `appDocumentExists` first — deleting something that isn't there and
+ * deleting something that already went away between the check and the
+ * call should both just succeed.
+ */
+export async function removeAppDocument(relativePath: string): Promise<void> {
+  const { remove } = await import("@tauri-apps/plugin-fs");
+  const { baseDir } = await resolveAppDocsBase();
+  const full = `${APP_DOCS_FOLDER}/${relativePath}`;
+  try {
+    await remove(full, { baseDir });
+  } catch {
+    /* already gone, or never existed — either way, the caller's goal
+       ("this file shouldn't be here") is already satisfied */
+  }
+}
+
 /** Absolute path for `<AppDocsBase>/TurfApp/<relativePath>`, for opening/revealing. */
 export async function appDocumentAbsPath(relativePath: string): Promise<string> {
   const { join } = await import("@tauri-apps/api/path");
@@ -153,8 +173,8 @@ export async function appDocumentAbsPath(relativePath: string): Promise<string> 
 /**
  * Reads the raw bytes of `<AppDocsBase>/TurfApp/<relativePath>` back out.
  * Used anywhere the app needs to re-package a file it previously wrote
- * there (e.g. the receipts-sharing export in `receipts-share.ts`) rather
- * than just opening it for the person to view.
+ * there (e.g. `buildFullBackup` in telegram-backup.ts, packing it into the
+ * Telegram archive) rather than just opening it for the person to view.
  */
 export async function readAppDocument(relativePath: string): Promise<Uint8Array> {
   const { readFile } = await import("@tauri-apps/plugin-fs");

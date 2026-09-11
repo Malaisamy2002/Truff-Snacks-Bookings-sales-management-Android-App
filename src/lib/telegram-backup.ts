@@ -1,5 +1,5 @@
 const loadJSZip = async () => (await import("jszip")).default;
-import { db, table, DATA_TABLES, nowIso, type ExpenseRow } from "./localdb";
+import { db, table, DATA_TABLES, nowIso, type ExpenseRow, type ReceiptHashRow } from "./localdb";
 import { restoreBackup, type BackupFile } from "./backup";
 import { resolveImportAction, sha256Hex } from "./receipts-share";
 import {
@@ -238,6 +238,30 @@ export async function restoreFullBackup(
   };
   const rowsRestored = await restoreBackup(legacy, mode);
 
+  // `receipts` and `receipt_hashes` aren't in BACKUP_TABLES (see DATA_TABLES
+  // in localdb.ts), so the restoreBackup() call above never touches either
+  // one — `receipts` is rebuilt below from the zip's actual file bytes
+  // (using its captured `created_at`, not "now"), and `receipt_hashes` is
+  // restored here with the same replace/merge semantics as everything else:
+  // replace wipes and reinserts every hash the archive carried, merge only
+  // adds hashes for paths this device doesn't already have one for.
+  const hashRows = (backup.tables["receipt_hashes"] ?? []) as unknown as ReceiptHashRow[];
+  if (hashRows.length > 0) {
+    if (mode === "replace") {
+      await db.receipt_hashes.clear();
+      await db.receipt_hashes.bulkPut(hashRows);
+    } else {
+      const existingHashPaths = new Set((await db.receipt_hashes.toArray()).map((r) => r.path));
+      const freshHashes = hashRows.filter((r) => !existingHashPaths.has(r.path));
+      if (freshHashes.length > 0) await db.receipt_hashes.bulkPut(freshHashes);
+    }
+  }
+  const receiptRows = (backup.tables["receipts"] ?? []) as unknown as {
+    path: string;
+    created_at: string;
+  }[];
+  const createdAtByPath = new Map(receiptRows.map((r) => [r.path, r.created_at]));
+
   const expenses = await db.expenses.toArray();
   const knownReceiptPaths = new Set(
     expenses.map((e) => e.receipt_path).filter((p): p is string => !!p),
@@ -278,8 +302,8 @@ export async function restoreFullBackup(
     } else {
       await db.receipts.put({
         path,
-        blob: new Blob([fileBytes.buffer.slice(0) as ArrayBuffer]),
-        created_at: nowIso(),
+        blob: new Blob([fileBytes]),
+        created_at: createdAtByPath.get(path) ?? nowIso(),
       });
     }
     filesRestored++;

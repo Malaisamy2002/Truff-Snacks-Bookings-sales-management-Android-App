@@ -151,8 +151,8 @@ export function backupSummary(backup: BackupFile) {
 /**
  * Restores a snapshot. `mode: "replace"` wipes current rows first;
  * `mode: "merge"` keeps existing rows and adds only the ones missing.
- * Returns the number of table rows inserted (photos are restored too, but
- * counted separately below — see `restoreBackupPhotos`).
+ * Returns the number of table rows inserted — photos are restored too (see
+ * the `backup.photos` loop below), but aren't counted in this return value.
  */
 export async function restoreBackup(backup: BackupFile, mode: "replace" | "merge" = "replace") {
   let inserted = 0;

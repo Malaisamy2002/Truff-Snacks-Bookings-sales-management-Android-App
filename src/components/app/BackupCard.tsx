@@ -32,10 +32,6 @@ import {
   readAppSettings,
   type BackupReminder,
 } from "@/lib/settings";
-import {
-  missingReceiptsNotice,
-  scanMissingReceipts,
-} from "@/lib/receipts-share";
 
 export function BackupCard() {
   const qc = useQueryClient();
@@ -56,19 +52,6 @@ export function BackupCard() {
     }
   };
 
-  // After any restore (merge or replace), older (version-1) backups arrive
-  // without receipt photos — new backups carry photos inline (see `photos`
-  // on BackupFile in backup.ts), but a version-1 file predates that. Scan
-  // once, right after the restore's own success toast, and point the person
-  // at the "Receipts sharing" card just below instead of letting them
-  // discover the gap later, one broken "View receipt" at a time.
-  const notifyMissingReceipts = async () => {
-    const scan = await scanMissingReceipts();
-    const notice = missingReceiptsNotice(scan);
-    if (notice)
-      toast.info("Some receipt photos are missing", { description: notice });
-  };
-
   const applyBackup = async (text: string) => {
     const backup = parseBackup(text);
     if (!merge) {
@@ -81,7 +64,6 @@ export function BackupCard() {
     toast.success(`Restored ${count} records`, {
       description: backupSummary(backup),
     });
-    await notifyMissingReceipts();
   };
 
   const confirmRestore = async () => {
@@ -95,7 +77,6 @@ export function BackupCard() {
       toast.success(`Restored ${count} records`, {
         description: backupSummary(backup),
       });
-      await notifyMissingReceipts();
     } catch (e) {
       toast.error((e as Error).message);
     } finally {

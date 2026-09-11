@@ -15,8 +15,11 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { formatDMY, money } from "@/lib/biz";
+import { INVOICE_SECTIONS } from "@/lib/desktop";
 import { isFinancialBooking, isFinancialSale } from "@/lib/dues";
 import { buildMergedItems, mergeIntoBill, previewMerge } from "@/lib/merge";
+import { usePrintSettings } from "@/lib/print";
+import { printBillPdf } from "@/lib/receipt";
 import { useSnackSales, useTurfBookings } from "@/lib/ops";
 import { useTabEntries } from "@/lib/tabs";
 import { CustomerFields } from "./CustomerFields";
@@ -34,6 +37,7 @@ export function MergeBillDialog() {
   const { data: bookings = [] } = useTurfBookings();
   const { data: sales = [] } = useSnackSales();
   const { data: tabEntries = [] } = useTabEntries();
+  const { settings: printSettings } = usePrintSettings();
   const qc = useQueryClient();
 
   const [name, setName] = useState("");
@@ -127,6 +131,7 @@ export function MergeBillDialog() {
                 ? ` · ${money(preview.alreadyOnTab)} taken off the tab`
                 : ""),
       );
+      if (printSettings.autoPrint) printBillPdf(bill, INVOICE_SECTIONS.merged);
       setOpen(false);
       reset();
     } catch (e) {

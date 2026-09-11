@@ -27,6 +27,7 @@ import {
 import { rupees } from "./money";
 import type { SnackSale, TurfBooking } from "./ops";
 import { paperInfo, paperWidthMm, readPrintSettings, type PrintSettings } from "./print";
+import { buildPremiumReceiptPdf } from "./receipt-premium";
 import { readAppSettings } from "./settings";
 
 /** PDF-safe money: helvetica has no rupee glyph, and receipts drop paise.
@@ -82,8 +83,18 @@ const DENSITY_SHADE: Record<PrintSettings["density"], number> = {
   dark: 0,
 };
 
-/** Builds a receipt PDF sized for the printer selected in Settings. */
+/** Builds a receipt PDF sized for the printer selected in Settings.
+ *
+ * When Settings has the "premium" template style on, this first tries the
+ * boxed/two-tone letterhead layout in receipt-premium.ts — it only covers
+ * A4/A5/80mm/58mm/50mm paper, so any other paper (Letter, 76mm, a custom
+ * roll width) silently falls through to the classic renderer below, same as
+ * if "classic" had been selected. */
 export function buildReceiptPdf(doc: ReceiptDoc, s: PrintSettings = readPrintSettings()): jsPDF {
+  if (s.templateStyle === "premium") {
+    const premium = buildPremiumReceiptPdf(doc, s);
+    if (premium) return premium;
+  }
   const paper = paperInfo(s.paper);
   const width = paperWidthMm(s);
   const wide = paper.kind === "sheet";

@@ -203,7 +203,6 @@ export const LAYOUT_REGISTRY: TabDef[] = [
     sections: [
       { id: "settings.telegram", label: "Cloud backup (Telegram)", kind: "panel" },
       { id: "settings.backup", label: "Backup & restore", kind: "panel" },
-      { id: "settings.receipts", label: "Receipts sharing", kind: "panel" },
       { id: "settings.turf-rates", label: "Turf rates", kind: "form" },
       { id: "settings.snack-items", label: "Snack items", kind: "table" },
       { id: "settings.billing", label: "Billing & tax", kind: "form" },

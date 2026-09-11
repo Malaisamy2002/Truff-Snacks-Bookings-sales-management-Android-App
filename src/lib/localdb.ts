@@ -241,14 +241,13 @@ export type CounterRow = { key: string; value: number; updated_at: string };
 
 /**
  * SHA-256 of a receipt photo's bytes, recorded once at capture time
- * (`uploadReceipt` in expenses.ts) and checked later by `verifyReceipts()`
- * in `receipts-share.ts` — this is what lets a "Verify receipts" pass
- * detect on-disk corruption that happened after the photo was saved, not
- * just corruption introduced by an export/import round-trip. Keyed by the
- * same relative `receipt_path` every other receipt-adjacent table uses, so
- * it needs no separate lookup table of its own. Rows saved before this
- * table existed simply have no entry here — treated as "no hash recorded",
- * the same as a legacy imported archive with no manifest checksum.
+ * (`uploadReceipt` in expenses.ts) and carried alongside the photo in the
+ * Telegram full backup (`telegram-backup.ts`), so a corrupted byte anywhere
+ * in that transfer is caught rather than silently restored as "valid".
+ * Keyed by the same relative `receipt_path` every other receipt-adjacent
+ * table uses, so it needs no separate lookup table of its own. Rows saved
+ * before this table existed simply have no entry here — treated as "no
+ * hash recorded", the same as an older archive with no manifest checksum.
  */
 export type ReceiptHashRow = { path: string; sha256: string; created_at: string };
 
@@ -322,11 +321,11 @@ class LedgerDB extends Dexie {
     // v6 adds an app-wide key-value settings store (global slot durations, …).
     this.version(6).stores({ app_settings: "key" });
 
-    // v7 adds a capture-time hash store for receipt photos, backing the
-    // standalone "Verify receipts" check in receipts-share.ts. Existing
-    // receipt rows are left without a hash (nothing to backfill — the
-    // original camera bytes at capture time are gone); verifyReceipts()
-    // treats a missing hash as "unverifiable", never as "corrupt".
+    // v7 adds a capture-time hash store for receipt photos, checked
+    // against on restore by the Telegram full backup (telegram-backup.ts).
+    // Existing receipt rows are left without a hash (nothing to backfill —
+    // the original camera bytes at capture time are gone); a missing hash
+    // is treated as "unverifiable", never as "corrupt".
     this.version(7).stores({ receipt_hashes: "path" });
   }
 }

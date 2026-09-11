@@ -2,6 +2,7 @@ import "fake-indexeddb/auto";
 import { describe, expect, it, beforeEach } from "vitest";
 
 import {
+  deleteReceipt,
   missingReceiptMessage,
   openReceipt,
   planRecurringPosts,
@@ -108,6 +109,29 @@ describe("uploadReceipt()", () => {
   });
 });
 
+describe("deleteReceipt()", () => {
+  beforeEach(async () => {
+    await db.receipts.clear();
+    await db.receipt_hashes.clear();
+  });
+
+  it("removes both the photo and its recorded hash", async () => {
+    const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]);
+    const file = new File([bytes], "photo.jpg", { type: "image/jpeg" });
+    const path = await uploadReceipt(file, "2026-09-04");
+    expect(await db.receipts.get(path)).toBeDefined();
+    expect(await db.receipt_hashes.get(path)).toBeDefined();
+
+    await deleteReceipt(path);
+    expect(await db.receipts.get(path)).toBeUndefined();
+    expect(await db.receipt_hashes.get(path)).toBeUndefined();
+  });
+
+  it("is a no-op for a path that was never stored", async () => {
+    await expect(deleteReceipt("Receipts/2026-09-04/never-existed.jpg")).resolves.not.toThrow();
+  });
+});
+
 describe("openReceipt() / missingReceiptMessage()", () => {
   it("throws RECEIPT_NOT_FOUND_MESSAGE when no photo is stored at the path", async () => {
     await expect(openReceipt("Receipts/2026-09-04/missing.jpg")).rejects.toThrow(
@@ -119,6 +143,16 @@ describe("openReceipt() / missingReceiptMessage()", () => {
     const message = missingReceiptMessage(new Error(RECEIPT_NOT_FOUND_MESSAGE), "TX-20260904-0007");
     expect(message).toContain("TX-20260904-0007");
     expect(message).not.toBe(RECEIPT_NOT_FOUND_MESSAGE);
+  });
+
+  it("points at a real restore path, not the removed .zip import feature", () => {
+    // Regression: this used to say "Import receipts (.zip)", a feature that
+    // no longer exists (see ReceiptsCard.tsx's removal) — a genuine dead
+    // end for anyone who saw it.
+    const message = missingReceiptMessage(new Error(RECEIPT_NOT_FOUND_MESSAGE), "TX-1");
+    expect(message).not.toContain(".zip");
+    expect(message).not.toContain("Import receipts");
+    expect(message).toMatch(/Backup & restore/);
   });
 
   it("falls back to a generic phrase when the expense has no reference number", () => {

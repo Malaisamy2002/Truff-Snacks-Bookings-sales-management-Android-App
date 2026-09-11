@@ -10,6 +10,7 @@ import {
   ReceiptText,
   PiggyBank,
   ListTree,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,7 @@ import {
 } from "@/lib/ops";
 import {
   categoryIcon,
+  deleteReceipt,
   missingReceiptMessage,
   monthKey,
   receiptUrl,
@@ -119,8 +121,55 @@ export function ExpensesTab() {
     amount: "",
     note: "",
   });
+  // The photo is written straight to the database (uploadReceipt) the
+  // moment it's picked, not deferred until the form is submitted — so it
+  // survives even if the person never gets around to submitting. `receipt`
+  // holds only display info (name) once `receiptPath` confirms it's saved;
+  // `pendingReceiptPath` mirrors `receiptPath` in a ref so the unmount
+  // cleanup effect below can see the latest value without depending on it.
   const [receipt, setReceipt] = useState<File | null>(null);
+  const [receiptPath, setReceiptPath] = useState<string | null>(null);
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
+  const pendingReceiptPath = useRef<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    pendingReceiptPath.current = receiptPath;
+  }, [receiptPath]);
+
+  // Best-effort: if the form is abandoned (tab switched away, component
+  // unmounted) while a photo is attached but never submitted, don't leave
+  // it stranded in the database with nothing pointing at it.
+  useEffect(() => {
+    return () => {
+      if (pendingReceiptPath.current) void deleteReceipt(pendingReceiptPath.current);
+    };
+  }, []);
+
+  const handleReceiptChange = async (file: File | null) => {
+    if (!file) return;
+    // Replacing an already-attached photo — the old one is about to become
+    // unreachable from this form, so clean it up instead of leaving an
+    // orphaned row behind.
+    if (receiptPath) await deleteReceipt(receiptPath);
+    setUploadingReceipt(true);
+    try {
+      const path = await uploadReceipt(file, form.spent_at);
+      setReceipt(file);
+      setReceiptPath(path);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setUploadingReceipt(false);
+    }
+  };
+
+  const clearReceipt = () => {
+    if (receiptPath) void deleteReceipt(receiptPath);
+    setReceipt(null);
+    setReceiptPath(null);
+    if (fileRef.current) fileRef.current.value = "";
+  };
 
   const [rule, setRule] = useState({
     title: "",
@@ -240,11 +289,13 @@ export function ExpensesTab() {
       return;
     }
     try {
-      let receipt_path: string | null = null;
-      if (receipt) receipt_path = await uploadReceipt(receipt, form.spent_at);
-      await addExpense.mutateAsync({ ...form, amount, receipt_path });
+      // The photo (if any) is already in the database — attached the
+      // moment it was picked, via handleReceiptChange — so this just
+      // points the expense row at that already-saved path.
+      await addExpense.mutateAsync({ ...form, amount, receipt_path: receiptPath });
       setForm({ ...form, description: "", amount: "", note: "" });
       setReceipt(null);
+      setReceiptPath(null);
       if (fileRef.current) fileRef.current.value = "";
       toast.success("Expense added");
     } catch (e) {
@@ -516,16 +567,33 @@ export function ExpensesTab() {
                       accept="image/*"
                       capture="environment"
                       className="hidden"
-                      onChange={(e) => setReceipt(e.target.files?.[0] ?? null)}
+                      onChange={(e) => void handleReceiptChange(e.target.files?.[0] ?? null)}
                     />
-                    <Button
-                      variant="outline"
-                      className="lift w-full"
-                      onClick={() => fileRef.current?.click()}
-                    >
-                      <Paperclip className="mr-1 size-4" />
-                      {receipt ? receipt.name.slice(0, 18) : "Attach photo"}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        className="lift w-full"
+                        disabled={uploadingReceipt}
+                        onClick={() => fileRef.current?.click()}
+                      >
+                        <Paperclip className="mr-1 size-4" />
+                        {uploadingReceipt
+                          ? "Saving…"
+                          : receipt
+                            ? receipt.name.slice(0, 18)
+                            : "Attach photo"}
+                      </Button>
+                      {receiptPath && !uploadingReceipt && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          aria-label="Remove attached photo"
+                          onClick={clearReceipt}
+                        >
+                          <X className="size-4" />
+                        </Button>
+                      )}
+                    </div>
                   </LayoutPart>
                   <LayoutPart id="money.add-expense.save">
                     <Button
