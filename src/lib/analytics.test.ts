@@ -175,8 +175,8 @@ describe("periodStats() revenue", () => {
     );
     expect(s.netRevenue).toBe(s.billsRevenue + s.turfRevenue + s.snacksRevenue);
     expect(s.revenue).toBe(s.netRevenue + s.tax);
-    expect(s.tax).toBe(180);
-    expect(s.revenue).toBe(2680);
+    expect(s.tax).toBe(450);
+    expect(s.revenue).toBe(2950);
   });
 
   it("profit ignores tax so switching GST on never inflates it", () => {

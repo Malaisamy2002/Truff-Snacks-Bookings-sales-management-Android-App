@@ -244,11 +244,17 @@ export function DuesTab() {
       <LayoutSections tabId="dues" className="space-y-6">
         <LayoutSection id="dues.summary">
           <LayoutParts sectionId="dues.summary" className="grid grid-cols-2 gap-2">
-            <LayoutPart id="dues.summary.count" className="frost-well rounded-2xl border p-3.5 text-center">
+            <LayoutPart
+              id="dues.summary.count"
+              className="frost-well rounded-2xl border p-3.5 text-center"
+            >
               <p className="micro-label whitespace-nowrap">Open tabs</p>
               <p className="stat-value mt-1 text-lg">{owing.length}</p>
             </LayoutPart>
-            <LayoutPart id="dues.summary.total" className="frost-well rounded-2xl border border-primary/30 p-3.5 text-center">
+            <LayoutPart
+              id="dues.summary.total"
+              className="frost-well rounded-2xl border border-primary/30 p-3.5 text-center"
+            >
               <p className="micro-label whitespace-nowrap">Total on tabs</p>
               <p className="stat-value mt-1 text-lg text-destructive">{money(totalOwed)}</p>
             </LayoutPart>
@@ -265,59 +271,63 @@ export function DuesTab() {
         <LayoutSection id="dues.open-tabs">
           <section className="space-y-3">
             <LayoutParts sectionId="dues.open-tabs" className="space-y-3">
-            <LayoutPart id="dues.open-tabs.toolbar" className="space-y-3">
-            <SectionHeading
-              eyebrow="COLLECT"
-              title="Open tabs"
-              icon={HandCoins}
-              action={
-                <SortMenu
-                  options={OPEN_TAB_SORT_OPTIONS}
-                  field={openTabSort.field}
-                  dir={openTabSort.dir}
-                  onFieldChange={openTabSort.setField}
-                  onToggleDir={openTabSort.toggleDir}
+              <LayoutPart id="dues.open-tabs.toolbar" className="space-y-3">
+                <SectionHeading
+                  eyebrow="COLLECT"
+                  title="Open tabs"
+                  icon={HandCoins}
+                  action={
+                    <SortMenu
+                      options={OPEN_TAB_SORT_OPTIONS}
+                      field={openTabSort.field}
+                      dir={openTabSort.dir}
+                      onFieldChange={openTabSort.setField}
+                      onToggleDir={openTabSort.toggleDir}
+                    />
+                  }
                 />
-              }
-            />
-            <Card className="frost">
-              <CardContent className="pt-5">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    className="pl-9"
-                    placeholder="Search name or phone"
-                    value={q}
-                    onChange={(e) => setQ(e.target.value)}
-                    data-shortcut="search"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-            </LayoutPart>
-            <LayoutPart id="dues.open-tabs.list">
-      <ListDisclosure storageKey="dues.open-tabs" label="Open tabs" count={openTabs.length}>
-            <Card className="frost">
-              <CardContent className="space-y-3 pt-5">
-                {openTabs.length === 0 ? (
-                  <p className="py-6 text-center text-sm text-muted-foreground">
-                    No open tabs. Add a due above to start one.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {openTabs.map((s) => (
-                      <OpenTabRow
-                        key={s.tab?.id ?? s.entries[0]?.customer_key}
-                        summary={s}
-                        sources={sources}
+                <Card className="frost">
+                  <CardContent className="pt-5">
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        className="pl-9"
+                        placeholder="Search name or phone"
+                        value={q}
+                        onChange={(e) => setQ(e.target.value)}
+                        data-shortcut="search"
                       />
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-      </ListDisclosure>
-            </LayoutPart>
+                    </div>
+                  </CardContent>
+                </Card>
+              </LayoutPart>
+              <LayoutPart id="dues.open-tabs.list">
+                <ListDisclosure
+                  storageKey="dues.open-tabs"
+                  label="Open tabs"
+                  count={openTabs.length}
+                >
+                  <Card className="frost">
+                    <CardContent className="space-y-3 pt-5">
+                      {openTabs.length === 0 ? (
+                        <p className="py-6 text-center text-sm text-muted-foreground">
+                          No open tabs. Add a due above to start one.
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {openTabs.map((s) => (
+                            <OpenTabRow
+                              key={s.tab?.id ?? s.entries[0]?.customer_key}
+                              summary={s}
+                              sources={sources}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </ListDisclosure>
+              </LayoutPart>
             </LayoutParts>
           </section>
         </LayoutSection>

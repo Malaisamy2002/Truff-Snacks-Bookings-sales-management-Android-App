@@ -27,7 +27,7 @@ on:
       - "src/**"
       - "public/**"
       - "package.json"
-      - "bun.lock"
+      - "package-lock.json"
       - ".github/workflows/build-android.yml"
 
 jobs:
@@ -36,13 +36,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          bun-version: latest
+          node-version: 22
+          cache: npm
 
       - name: Install frontend dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Setup JDK 17
         uses: actions/setup-java@v4
@@ -98,7 +99,7 @@ jobs:
       # a piped answer — check the log either way before assuming this line
       # is correct.
       - name: Initialize the Android project
-        run: bunx tauri android init --ci
+        run: npx tauri android init --ci
 
       # Placed after `tauri android init` (not before) so the generated
       # Gradle files actually exist for `hashFiles` to hash — an earlier
@@ -119,7 +120,7 @@ jobs:
       # With this flag Gradle instead produces one smaller APK per ABI under
       # app/build/outputs/apk/<abi>/debug/.
       - name: Build the Android app (debug APKs, split per ABI)
-        run: bunx tauri android build --apk --debug --split-per-abi
+        run: npx tauri android build --apk --debug --split-per-abi
 
       # Logged so a real run's output confirms the exact per-ABI file names
       # this Tauri/Gradle version produces — the globs below are pattern
@@ -208,6 +209,6 @@ jobs:
 #      above into it (typically via a `keystore.properties` file read from
 #      `build.gradle.kts`) rather than guessing the property names blind.
 #
-#   4. Swap the build step to `bunx tauri android build --aab` (release,
+#   4. Swap the build step to `npx tauri android build --aab` (release,
 #      not `--debug --apk`) and upload the `.aab` from
 #      `app/build/outputs/bundle/release/` instead.

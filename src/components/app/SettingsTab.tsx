@@ -280,7 +280,9 @@ function SlotDurationsCard() {
             className="w-20 text-center"
             aria-label="Courts available"
             value={durations.total_courts ?? 1}
-            onChange={(e) => save.mutate({ ...durations, total_courts: clampCourts(e.target.value) })}
+            onChange={(e) =>
+              save.mutate({ ...durations, total_courts: clampCourts(e.target.value) })
+            }
           />
         </div>
       </CardContent>

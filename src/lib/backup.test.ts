@@ -92,7 +92,11 @@ describe("restoreBackup() — photos", () => {
 
   it("replace clears photos that aren't in the new backup", async () => {
     const stalePath = `Receipts/2026-01-01/${newId()}.jpg`;
-    await db.receipts.put({ path: stalePath, blob: new Blob([new Uint8Array([1])]), created_at: nowIso() });
+    await db.receipts.put({
+      path: stalePath,
+      blob: new Blob([new Uint8Array([1])]),
+      created_at: nowIso(),
+    });
     const freshPath = `Receipts/2026-09-04/${newId()}.jpg`;
     await restoreBackup(makeBackup(freshPath, 99), "replace");
     expect(await db.receipts.get(stalePath)).toBeUndefined();

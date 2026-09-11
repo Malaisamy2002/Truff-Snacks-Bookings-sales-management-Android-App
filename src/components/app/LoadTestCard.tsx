@@ -65,7 +65,10 @@ export function LoadTestCard() {
   const [result, setResult] = useState<LoadTestBenchmark | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
 
-  const refreshCounts = () => countLoadTestRows().then(setCounts).catch(() => {});
+  const refreshCounts = () =>
+    countLoadTestRows()
+      .then(setCounts)
+      .catch(() => {});
   useEffect(() => {
     void refreshCounts();
   }, []);
@@ -185,11 +188,7 @@ export function LoadTestCard() {
           {counts && seeded && <CountLine counts={counts} />}
 
           <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              onClick={() => void runBench()}
-              disabled={!!busy || !seeded}
-            >
+            <Button variant="outline" onClick={() => void runBench()} disabled={!!busy || !seeded}>
               <Gauge className="mr-2 h-4 w-4" />
               {busy === "bench" ? "Benchmarking…" : "Run benchmark"}
             </Button>

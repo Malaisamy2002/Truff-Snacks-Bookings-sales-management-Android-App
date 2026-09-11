@@ -69,9 +69,7 @@ describe("planRecurringPosts()", () => {
 
   it("skips rules already posted this month and inactive rules", () => {
     const now = new Date("2026-09-06T06:30:00.000Z");
-    expect(
-      planRecurringPosts([rule({ last_posted_month: "2026-09" })], now),
-    ).toHaveLength(0);
+    expect(planRecurringPosts([rule({ last_posted_month: "2026-09" })], now)).toHaveLength(0);
     expect(planRecurringPosts([rule({ is_active: false })], now)).toHaveLength(0);
   });
 
@@ -101,9 +99,7 @@ describe("uploadReceipt()", () => {
     // signature check must not.
     const bytes = new TextEncoder().encode("definitely not a photo");
     const file = new File([bytes], "receipt.jpg", { type: "image/jpeg" });
-    await expect(uploadReceipt(file, "2026-09-04")).rejects.toThrow(
-      /doesn't look like an image/,
-    );
+    await expect(uploadReceipt(file, "2026-09-04")).rejects.toThrow(/doesn't look like an image/);
     // And nothing should have been written to storage.
     expect(await db.receipts.toArray()).toHaveLength(0);
   });

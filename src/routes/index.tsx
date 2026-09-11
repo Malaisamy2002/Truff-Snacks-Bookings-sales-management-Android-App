@@ -82,7 +82,6 @@ function prefetchTab(id: keyof typeof TAB_LOADERS) {
   void TAB_LOADERS[id]().catch(() => prefetched.delete(id));
 }
 
-
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
@@ -174,8 +173,6 @@ function Index() {
     // Runs once: prefetching is global and guarded by the `prefetched` set.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-
 
   // Android sends this event before applying its default WebView back action.
   // Keep navigation predictable: dismiss an open sheet/dialog first, then
@@ -312,7 +309,6 @@ function Index() {
           })}
         </Suspense>
       </main>
-
 
       <nav className="frost fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t pb-[env(safe-area-inset-bottom)] md:hidden">
         {primaryMobileTabs.map((t) => {

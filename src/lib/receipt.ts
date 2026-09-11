@@ -789,12 +789,7 @@ export async function printReceipt(
     // The phone refused to open its print dialog — fall back to the older
     // route (save the PDF to Downloads and open it in a viewer, whose own
     // Print action can still reach the printer), and say why.
-    const saveResult = await saveExportFile(
-      bytes,
-      `${doc.fileName}.pdf`,
-      "application/pdf",
-      true,
-    );
+    const saveResult = await saveExportFile(bytes, `${doc.fileName}.pdf`, "application/pdf", true);
     if (saveResult.saved) {
       toast.success("Receipt saved and opened instead", {
         description: `${printResult.error ?? "The print dialog wouldn't open."} Use Print in the PDF viewer.`,
@@ -979,9 +974,10 @@ export function bookingReceipt(b: TurfBooking): ReceiptDoc {
   const courts = b.courts ?? 1;
   const snacks = b.snacks ?? [];
   const snacksTotal = b.snacks_total ?? 0;
-  // `??`, not `||` — see Finding #3: a genuinely comped turf_amount of 0
-  // must print as 0, not be silently replaced by a recomputed non-zero value.
-  const turfAmount = b.turf_amount ?? b.hours * b.rate_per_hour * courts;
+  // Older rows were saved with zero when turf_amount was not yet present.
+  // Reconstruct that legacy value from hours × rate × courts.
+  const storedTurf = Number(b.turf_amount) || 0;
+  const turfAmount = storedTurf > 0 ? storedTurf : b.hours * b.rate_per_hour * courts;
   // GRAND TOTAL is derived from the same Turf + Snacks − Discount figure
   // printed just above it, instead of trusting `b.total_amount` blindly.
   // `total_amount` is normally created exactly this way (see TurfTab's

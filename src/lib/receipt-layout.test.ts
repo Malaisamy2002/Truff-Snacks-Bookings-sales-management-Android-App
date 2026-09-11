@@ -11,15 +11,26 @@ import { buildReceiptPdf, type ReceiptDoc } from "./receipt";
  * call's text/x/align/width (measured against whatever font was active at
  * call time) and the page width whenever `activeCapture` is set.
  */
-type TextCall = { text: string; x: number; width: number; align?: string; pageWidth: number };
+type TextCall = {
+  text: string;
+  x: number;
+  width: number;
+  align: string | undefined;
+  pageWidth: number;
+};
 let activeCapture: TextCall[] | null = null;
 
 vi.mock("jspdf", async (importOriginal) => {
   const actual = await importOriginal<typeof import("jspdf")>();
-  function PatchedJsPDF(this: unknown, ...args: unknown[]) {
-    const instance = new (actual.jsPDF as any)(...args);
+  function PatchedJsPDF(this: unknown, ...args: ConstructorParameters<typeof actual.jsPDF>) {
+    const instance = new actual.jsPDF(...args);
     const originalText = instance.text.bind(instance);
-    instance.text = (text: unknown, x: number, y: number, options?: any) => {
+    instance.text = (
+      text: string | string[],
+      x: number,
+      y: number,
+      options?: import("jspdf").TextOptions,
+    ) => {
       if (activeCapture && typeof text === "string") {
         activeCapture.push({
           text,

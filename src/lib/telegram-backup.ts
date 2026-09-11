@@ -119,7 +119,9 @@ export type BuildFullBackupResult = {
  * reported, never fatal — a partially-restored device should still be able
  * to back up what it does have.
  */
-export async function buildFullBackup(deviceLabel = defaultDeviceLabel()): Promise<BuildFullBackupResult> {
+export async function buildFullBackup(
+  deviceLabel = defaultDeviceLabel(),
+): Promise<BuildFullBackupResult> {
   const tables: FullBackup["tables"] = {};
   for (const t of DATA_TABLES) {
     tables[t] = (await table(t).toArray()) as Record<string, unknown>[];
@@ -212,8 +214,7 @@ export async function restoreFullBackup(
   archiveBytes: Uint8Array | ArrayBuffer,
   mode: "replace" | "merge" = "replace",
 ): Promise<RestoreFullBackupResult> {
-  let bytes =
-    archiveBytes instanceof Uint8Array ? archiveBytes : new Uint8Array(archiveBytes);
+  let bytes = archiveBytes instanceof Uint8Array ? archiveBytes : new Uint8Array(archiveBytes);
   // Archives made after the 1.4 fix are encrypted (see `encryptFullBackupBytes`);
   // older archives made before it are plain zips. Detect and handle both so
   // a backup someone already has saved/sent doesn't become unrestorable.
@@ -302,7 +303,7 @@ export async function restoreFullBackup(
     } else {
       await db.receipts.put({
         path,
-        blob: new Blob([fileBytes]),
+        blob: new Blob([fileBytes.slice().buffer as ArrayBuffer]),
         created_at: createdAtByPath.get(path) ?? nowIso(),
       });
     }
@@ -339,7 +340,8 @@ export async function saveFullBackupLocally(
 ): Promise<string | null> {
   if (isAndroid()) {
     const result = await saveExportFile(bytes, name, "application/zip");
-    if (!result.saved) throw new Error(`Couldn't save the backup: ${result.error ?? "unknown reason"}`);
+    if (!result.saved)
+      throw new Error(`Couldn't save the backup: ${result.error ?? "unknown reason"}`);
     return result.path ?? name;
   }
   if (isDesktop()) {
@@ -741,8 +743,7 @@ async function telegramFetch(url: string, init?: RequestInit): Promise<Response>
 
 /** Turns a failed Telegram response body into a sentence a person can act on. */
 export function telegramErrorMessage(status: number, body: unknown): string {
-  const description =
-    (body as { description?: string } | null)?.description ?? `HTTP ${status}`;
+  const description = (body as { description?: string } | null)?.description ?? `HTTP ${status}`;
   if (status === 401) return "Telegram rejected the bot token — check it and paste it in again.";
   if (status === 403)
     return "The bot can't post in that chat. Add it to the channel/group and make it an admin that can post messages.";
@@ -797,7 +798,9 @@ async function uploadChunks(
       form.append("caption", caption);
       form.append(
         "document",
-        new Blob([(parts[i] as Uint8Array).slice().buffer as ArrayBuffer], { type: "application/zip" }),
+        new Blob([(parts[i] as Uint8Array).slice().buffer as ArrayBuffer], {
+          type: "application/zip",
+        }),
         fileName,
       );
       const res = await telegramFetch(`${API_ROOT}/bot${token}/sendDocument`, {
@@ -827,7 +830,11 @@ async function uploadChunks(
 export async function uploadFullBackup(
   cfg: TelegramConfig,
   archiveBytes: Uint8Array,
-  options: { session?: string; deviceLabel?: string; onProgress?: (p: UploadProgress) => void } = {},
+  options: {
+    session?: string;
+    deviceLabel?: string;
+    onProgress?: (p: UploadProgress) => void;
+  } = {},
 ): Promise<UploadResult> {
   if (!isTelegramConfigured(cfg))
     throw new Error("Add the bot token and chat ID before backing up to Telegram.");
@@ -953,7 +960,11 @@ export async function uploadYearArchive(
   cfg: TelegramConfig,
   year: number,
   archiveBytes: Uint8Array,
-  options: { session?: string; deviceLabel?: string; onProgress?: (p: UploadProgress) => void } = {},
+  options: {
+    session?: string;
+    deviceLabel?: string;
+    onProgress?: (p: UploadProgress) => void;
+  } = {},
 ): Promise<UploadYearArchiveResult> {
   if (!isTelegramConfigured(cfg))
     throw new Error("Add the bot token and chat ID before archiving a year to Telegram.");
@@ -1012,7 +1023,11 @@ export function readLastUpload(): LastUpload | null {
 }
 
 type TelegramUpdate = {
-  message?: { chat?: { id?: number | string }; document?: { file_id?: string; file_name?: string }; message_id?: number };
+  message?: {
+    chat?: { id?: number | string };
+    document?: { file_id?: string; file_name?: string };
+    message_id?: number;
+  };
   channel_post?: {
     chat?: { id?: number | string };
     document?: { file_id?: string; file_name?: string };
@@ -1036,7 +1051,11 @@ export function chunksFromUpdates(updates: TelegramUpdate[], chatId: string): Re
   return found;
 }
 
-async function callApi<T>(token: string, method: string, params: Record<string, unknown>): Promise<T> {
+async function callApi<T>(
+  token: string,
+  method: string,
+  params: Record<string, unknown>,
+): Promise<T> {
   for (let attempt = 1; ; attempt++) {
     const res = await telegramFetch(`${API_ROOT}/bot${token}/${method}`, {
       method: "POST",

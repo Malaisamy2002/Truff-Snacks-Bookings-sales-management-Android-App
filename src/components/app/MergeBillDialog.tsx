@@ -67,10 +67,12 @@ export function MergeBillDialog() {
   // All the item-building + subtotal/discount/total math lives in
   // lib/merge.ts and is shared with the actual save (mergeIntoBill), so this
   // preview can never disagree with what gets written.
-  const { items, subtotal: grossTotal, discount: mergedDiscount, total } = useMemo(
-    () => buildMergedItems(pickedBookings, pickedSales),
-    [pickedBookings, pickedSales],
-  );
+  const {
+    items,
+    subtotal: grossTotal,
+    discount: mergedDiscount,
+    total,
+  } = useMemo(() => buildMergedItems(pickedBookings, pickedSales), [pickedBookings, pickedSales]);
 
   const preview = useMemo(
     () =>

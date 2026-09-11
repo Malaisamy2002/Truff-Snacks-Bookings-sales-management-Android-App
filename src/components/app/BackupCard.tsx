@@ -92,10 +92,9 @@ export function BackupCard() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Exports every customer, bill, expense, booking and snack sale into
-            one
-            <code className="mx-1 rounded bg-muted px-1">.db</code> file you can
-            keep or move to another device.
+            Exports every customer, bill, expense, booking and snack sale into one
+            <code className="mx-1 rounded bg-muted px-1">.db</code> file you can keep or move to
+            another device.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
@@ -109,12 +108,9 @@ export function BackupCard() {
                     ...readAppSettings(),
                     lastBackupAt: new Date().toISOString(),
                   });
-                  toast.success(
-                    isDesktop() ? "Backup saved" : "Backup file downloaded",
-                    {
-                      description: backupSummary(backup),
-                    },
-                  );
+                  toast.success(isDesktop() ? "Backup saved" : "Backup file downloaded", {
+                    description: backupSummary(backup),
+                  });
                 })
               }
             >
@@ -173,12 +169,8 @@ export function BackupCard() {
                 <Button
                   key={opt}
                   size="sm"
-                  variant={
-                    appSettings.backupReminder === opt ? "default" : "outline"
-                  }
-                  onClick={() =>
-                    saveAppSettings({ ...appSettings, backupReminder: opt })
-                  }
+                  variant={appSettings.backupReminder === opt ? "default" : "outline"}
+                  onClick={() => saveAppSettings({ ...appSettings, backupReminder: opt })}
                 >
                   {opt === "off" ? "Off" : opt === "daily" ? "Daily" : "Weekly"}
                 </Button>
@@ -194,9 +186,7 @@ export function BackupCard() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              Replace all data with this backup?
-            </AlertDialogTitle>
+            <AlertDialogTitle>Replace all data with this backup?</AlertDialogTitle>
             <AlertDialogDescription>
               {pendingRestore
                 ? `This deletes everything currently on this device and replaces it with ${backupSummary(pendingRestore)}. This can't be undone. Turn on "Merge with existing data" instead if you want to add these records without deleting anything.`
@@ -204,9 +194,7 @@ export function BackupCard() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy !== null}>
-              Cancel
-            </AlertDialogCancel>
+            <AlertDialogCancel disabled={busy !== null}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault();

@@ -139,6 +139,7 @@ describe("DEFAULT_PRINT_SETTINGS — sane out-of-the-box scale", () => {
     expect(DEFAULT_PRINT_SETTINGS.paper).toBe("80mm");
     expect(DEFAULT_PRINT_SETTINGS.fontScale).toBe(1);
     expect(DEFAULT_PRINT_SETTINGS.copies).toBe(1);
+    expect(DEFAULT_PRINT_SETTINGS.templateStyle).toBe("premium");
   });
 
   it("keeps a positive, sane custom width even before anyone touches it", () => {

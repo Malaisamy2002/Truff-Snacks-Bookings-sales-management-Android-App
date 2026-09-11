@@ -308,323 +308,342 @@ export function SnacksTab() {
       />
 
       <LayoutSections tabId="snacks" className="space-y-6">
-      <LayoutSection id="snacks.new-bill">
-      {/* Generate bill — kept at the very top of the page */}
-      <Card className="frost lift border-primary/30">
-        <CardContent className="space-y-4">
-          <SectionHeading icon={ReceiptText} eyebrow="New" title="Generate snack bill" />
-          <LayoutParts sectionId="snacks.new-bill" className="space-y-4">
-          <LayoutPart id="snacks.new-bill.customer">
-          <CustomerFields
-            name={customer}
-            phone={phone}
-            onChange={({ name, phone: p }) => {
-              setCustomer(name);
-              setPhone(p);
-            }}
-            nameLabel="Customer name"
-          />
-          </LayoutPart>
+        <LayoutSection id="snacks.new-bill">
+          {/* Generate bill — kept at the very top of the page */}
+          <Card className="frost lift border-primary/30">
+            <CardContent className="space-y-4">
+              <SectionHeading icon={ReceiptText} eyebrow="New" title="Generate snack bill" />
+              <LayoutParts sectionId="snacks.new-bill" className="space-y-4">
+                <LayoutPart id="snacks.new-bill.customer">
+                  <CustomerFields
+                    name={customer}
+                    phone={phone}
+                    onChange={({ name, phone: p }) => {
+                      setCustomer(name);
+                      setPhone(p);
+                    }}
+                    nameLabel="Customer name"
+                  />
+                </LayoutPart>
 
-          <LayoutPart id="snacks.new-bill.frequent">
-          {frequentItems.length > 0 && (
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Usually orders</Label>
-              <div className="flex flex-wrap gap-2">
-                {frequentItems.map((f) => (
-                  <Button
-                    key={f.item_name}
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => quickAddItem(f.item_name)}
-                  >
-                    <Repeat className="mr-1 h-3.5 w-3.5" />
-                    {f.item_name} · {f.timesBought}×
-                  </Button>
-                ))}
-              </div>
-            </div>
-          )}
-          </LayoutPart>
-
-          <LayoutParts sectionId="snacks.new-bill" className="grid gap-3 md:grid-cols-3">
-            <LayoutPart id="snacks.new-bill.date" className="space-y-1">
-              <Label className="text-xs">Date</Label>
-              <Input type="date" value={saleDate} onChange={(e) => setSaleDate(e.target.value)} />
-            </LayoutPart>
-            <LayoutPart id="snacks.new-bill.payment-mode" className="space-y-1">
-              <Label className="text-xs">Payment mode</Label>
-              <Select value={paymentMode} onValueChange={setPaymentMode}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SNACK_PAYMENT_MODES.map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {m}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </LayoutPart>
-            <LayoutPart id="snacks.new-bill.total" className="space-y-1">
-              <Label className="text-xs">Total (auto)</Label>
-              <Input readOnly disabled value={money(total)} className="font-semibold" />
-            </LayoutPart>
-          </LayoutParts>
-
-          <LayoutPart id="snacks.new-bill.link-booking" className="space-y-1">
-            <Label className="text-xs">Link to turf booking (optional)</Label>
-            <Select value={bookingId} onValueChange={setBookingId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Not linked" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Not linked</SelectItem>
-                {linkableBookings.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    {b.booking_no} · {b.customer_name} · {formatDMY(b.booking_date)}
-                    {b.start_time ? ` ${b.start_time}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {linkedBooking && (
-              <p className="text-xs text-muted-foreground">
-                Combined bill: turf {money(bookingGrossTotal(linkedBooking))} + snacks{" "}
-                {money(total)} ={" "}
-                <span className="font-medium text-foreground">
-                  {money(bookingGrossTotal(linkedBooking) + total)}
-                </span>
-              </p>
-            )}
-          </LayoutPart>
-
-          <LayoutPart id="snacks.new-bill.notes" className="space-y-1">
-            <Label className="text-xs">Notes</Label>
-            <Textarea
-              rows={2}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Optional note for this bill"
-            />
-          </LayoutPart>
-
-          <LayoutPart id="snacks.new-bill.save">
-          <Button
-            className="h-12 w-full"
-            onClick={generateBill}
-            disabled={create.isPending}
-            data-shortcut="save"
-          >
-            <ReceiptText className="mr-1 h-5 w-5" /> Generate bill · {money(total)}
-          </Button>
-          </LayoutPart>
-          </LayoutParts>
-        </CardContent>
-      </Card>
-      </LayoutSection>
-
-
-      <LayoutSection id="snacks.catalogue">
-      <Card>
-        <CardContent className="space-y-3">
-          <SectionHeading icon={ShoppingBasket} eyebrow="Catalogue" title="Add snacks" />
-          <LayoutParts sectionId="snacks.catalogue" className="space-y-3">
-          <LayoutPart id="snacks.catalogue.combos">
-          {activeCombos.length > 0 && (
-            <div className="frost-soft space-y-2 rounded-xl border border-primary/30 p-3">
-              <p className="micro-label">Combo deals — one tap</p>
-              <div className="flex flex-wrap gap-2">
-                {activeCombos.map((c) => (
-                  <Button key={c.id} size="sm" variant="secondary" onClick={() => addCombo(c)}>
-                    {c.name} · {money(c.price)}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          )}
-          </LayoutPart>
-
-          <LayoutPart id="snacks.catalogue.picker" className="space-y-3">
-          <div className="grid items-end gap-3 md:grid-cols-4">
-            <div className="space-y-1 md:col-span-2">
-              <Label className="text-xs">Item</Label>
-              <Popover open={itemPickerOpen} onOpenChange={setItemPickerOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={itemPickerOpen}
-                    className="w-full justify-between font-normal"
-                    disabled={activeSnacks.length === 0}
-                  >
-                    <span className="truncate">
-                      {picked
-                        ? `${picked.item_name} — ${money(picked.unit_price)} · ${picked.stock_quantity} left`
-                        : activeSnacks.length
-                          ? "Select item"
-                          : "Add items in Settings"}
-                    </span>
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                  <Command
-                    filter={(value, search) =>
-                      value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0
-                    }
-                  >
-                    <CommandInput placeholder="Search snacks…" />
-                    <CommandList>
-                      <CommandEmpty>No snack found.</CommandEmpty>
-                      <CommandGroup>
-                        {activeSnacks.map((i) => (
-                          <CommandItem
-                            key={i.id}
-                            value={i.item_name}
-                            onSelect={(value) => {
-                              setItemName(value === itemName ? "" : value);
-                              setItemPickerOpen(false);
-                              requestAnimationFrame(() => {
-                                qtyInputRef.current?.focus();
-                                qtyInputRef.current?.select();
-                              });
-                            }}
+                <LayoutPart id="snacks.new-bill.frequent">
+                  {frequentItems.length > 0 && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Usually orders</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {frequentItems.map((f) => (
+                          <Button
+                            key={f.item_name}
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => quickAddItem(f.item_name)}
                           >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                itemName === i.item_name ? "opacity-100" : "opacity-0",
-                              )}
-                            />
-                            <span className="flex-1 truncate">
-                              {i.item_name} — {money(i.unit_price)} · {i.stock_quantity} left
-                            </span>
-                          </CommandItem>
+                            <Repeat className="mr-1 h-3.5 w-3.5" />
+                            {f.item_name} · {f.timesBought}×
+                          </Button>
                         ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Qty</Label>
-              <Input
-                ref={qtyInputRef}
-                type="number"
-                min={0}
-                step={1}
-                value={qty}
-                onChange={(e) => setQty(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addLine();
-                  }
-                }}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Amount (auto)</Label>
-              <Input readOnly disabled value={money(lineAmount)} />
-            </div>
-          </div>
-          <Button variant="outline" className="w-full" onClick={addLine}>
-            <Plus className="mr-1 h-4 w-4" /> Add item
-          </Button>
-          </LayoutPart>
-
-          <LayoutPart id="snacks.catalogue.tip">
-          <p className="text-center text-[11px] text-muted-foreground">
-            Tip: pick an item, type the qty, then press{" "}
-            <kbd className="rounded border bg-muted px-1.5 py-0.5 font-mono">Enter</kbd> to add it
-            instantly and keep going.
-          </p>
-          </LayoutPart>
-
-          <LayoutPart id="snacks.catalogue.cart">
-          {cart.length > 0 && (
-            <div className="frost-well space-y-2 rounded-xl border p-3">
-              {cart.map((r, idx) => {
-                const key = cartRowKey(r);
-                return (
-                  <div key={idx} className="flex items-center justify-between gap-2 text-sm">
-                    <span className="flex-1 truncate">
-                      {r.item_name} · {money(r.unit_price)} each
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="size-7"
-                        aria-label="Decrease quantity"
-                        onClick={() => stepQty(idx, r.qty - 1)}
-                      >
-                        <Minus className="h-3.5 w-3.5" />
-                      </Button>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={qtyDrafts[key] ?? String(r.qty)}
-                        onFocus={() => setQtyDrafts((d) => ({ ...d, [key]: String(r.qty) }))}
-                        onChange={(e) => setQtyDrafts((d) => ({ ...d, [key]: e.target.value }))}
-                        onBlur={(e) => commitQtyDraft(idx, e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                        }}
-                        className="h-8 w-14 text-center"
-                      />
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="size-7"
-                        aria-label="Increase quantity"
-                        onClick={() => stepQty(idx, r.qty + 1)}
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                      </Button>
+                      </div>
                     </div>
-                    <span className="flex w-24 items-center justify-end gap-2 font-medium">
-                      {money(r.amount)}
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="size-8"
-                        aria-label="Remove item"
-                        onClick={() => setCart(cart.filter((_, i) => i !== idx))}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </span>
+                  )}
+                </LayoutPart>
+
+                <LayoutParts sectionId="snacks.new-bill" className="grid gap-3 md:grid-cols-3">
+                  <LayoutPart id="snacks.new-bill.date" className="space-y-1">
+                    <Label className="text-xs">Date</Label>
+                    <Input
+                      type="date"
+                      value={saleDate}
+                      onChange={(e) => setSaleDate(e.target.value)}
+                    />
+                  </LayoutPart>
+                  <LayoutPart id="snacks.new-bill.payment-mode" className="space-y-1">
+                    <Label className="text-xs">Payment mode</Label>
+                    <Select value={paymentMode} onValueChange={setPaymentMode}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SNACK_PAYMENT_MODES.map((m) => (
+                          <SelectItem key={m} value={m}>
+                            {m}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </LayoutPart>
+                  <LayoutPart id="snacks.new-bill.total" className="space-y-1">
+                    <Label className="text-xs">Total (auto)</Label>
+                    <Input readOnly disabled value={money(total)} className="font-semibold" />
+                  </LayoutPart>
+                </LayoutParts>
+
+                <LayoutPart id="snacks.new-bill.link-booking" className="space-y-1">
+                  <Label className="text-xs">Link to turf booking (optional)</Label>
+                  <Select value={bookingId} onValueChange={setBookingId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Not linked" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Not linked</SelectItem>
+                      {linkableBookings.map((b) => (
+                        <SelectItem key={b.id} value={b.id}>
+                          {b.booking_no} · {b.customer_name} · {formatDMY(b.booking_date)}
+                          {b.start_time ? ` ${b.start_time}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {linkedBooking && (
+                    <p className="text-xs text-muted-foreground">
+                      Combined bill: turf {money(bookingGrossTotal(linkedBooking))} + snacks{" "}
+                      {money(total)} ={" "}
+                      <span className="font-medium text-foreground">
+                        {money(bookingGrossTotal(linkedBooking) + total)}
+                      </span>
+                    </p>
+                  )}
+                </LayoutPart>
+
+                <LayoutPart id="snacks.new-bill.notes" className="space-y-1">
+                  <Label className="text-xs">Notes</Label>
+                  <Textarea
+                    rows={2}
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Optional note for this bill"
+                  />
+                </LayoutPart>
+
+                <LayoutPart id="snacks.new-bill.save">
+                  <Button
+                    className="h-12 w-full"
+                    onClick={generateBill}
+                    disabled={create.isPending}
+                    data-shortcut="save"
+                  >
+                    <ReceiptText className="mr-1 h-5 w-5" /> Generate bill · {money(total)}
+                  </Button>
+                </LayoutPart>
+              </LayoutParts>
+            </CardContent>
+          </Card>
+        </LayoutSection>
+
+        <LayoutSection id="snacks.catalogue">
+          <Card>
+            <CardContent className="space-y-3">
+              <SectionHeading icon={ShoppingBasket} eyebrow="Catalogue" title="Add snacks" />
+              <LayoutParts sectionId="snacks.catalogue" className="space-y-3">
+                <LayoutPart id="snacks.catalogue.combos">
+                  {activeCombos.length > 0 && (
+                    <div className="frost-soft space-y-2 rounded-xl border border-primary/30 p-3">
+                      <p className="micro-label">Combo deals — one tap</p>
+                      <div className="flex flex-wrap gap-2">
+                        {activeCombos.map((c) => (
+                          <Button
+                            key={c.id}
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => addCombo(c)}
+                          >
+                            {c.name} · {money(c.price)}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </LayoutPart>
+
+                <LayoutPart id="snacks.catalogue.picker" className="space-y-3">
+                  <div className="grid items-end gap-3 md:grid-cols-4">
+                    <div className="space-y-1 md:col-span-2">
+                      <Label className="text-xs">Item</Label>
+                      <Popover open={itemPickerOpen} onOpenChange={setItemPickerOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={itemPickerOpen}
+                            className="w-full justify-between font-normal"
+                            disabled={activeSnacks.length === 0}
+                          >
+                            <span className="truncate">
+                              {picked
+                                ? `${picked.item_name} — ${money(picked.unit_price)} · ${picked.stock_quantity} left`
+                                : activeSnacks.length
+                                  ? "Select item"
+                                  : "Add items in Settings"}
+                            </span>
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          className="w-[--radix-popover-trigger-width] p-0"
+                          align="start"
+                        >
+                          <Command
+                            filter={(value, search) =>
+                              value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0
+                            }
+                          >
+                            <CommandInput placeholder="Search snacks…" />
+                            <CommandList>
+                              <CommandEmpty>No snack found.</CommandEmpty>
+                              <CommandGroup>
+                                {activeSnacks.map((i) => (
+                                  <CommandItem
+                                    key={i.id}
+                                    value={i.item_name}
+                                    onSelect={(value) => {
+                                      setItemName(value === itemName ? "" : value);
+                                      setItemPickerOpen(false);
+                                      requestAnimationFrame(() => {
+                                        qtyInputRef.current?.focus();
+                                        qtyInputRef.current?.select();
+                                      });
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        itemName === i.item_name ? "opacity-100" : "opacity-0",
+                                      )}
+                                    />
+                                    <span className="flex-1 truncate">
+                                      {i.item_name} — {money(i.unit_price)} · {i.stock_quantity}{" "}
+                                      left
+                                    </span>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Qty</Label>
+                      <Input
+                        ref={qtyInputRef}
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={qty}
+                        onChange={(e) => setQty(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            addLine();
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Amount (auto)</Label>
+                      <Input readOnly disabled value={money(lineAmount)} />
+                    </div>
                   </div>
-                );
-              })}
-              <div className="flex justify-between border-t pt-2 text-sm font-semibold">
-                <span>Snacks total</span>
-                <span className="stat-value">{money(total)}</span>
-              </div>
-            </div>
-          )}
-          </LayoutPart>
-          </LayoutParts>
-        </CardContent>
-      </Card>
-      </LayoutSection>
+                  <Button variant="outline" className="w-full" onClick={addLine}>
+                    <Plus className="mr-1 h-4 w-4" /> Add item
+                  </Button>
+                </LayoutPart>
 
-      <LayoutSection id="snacks.stock">
-      <SnackStockCard />
-      </LayoutSection>
+                <LayoutPart id="snacks.catalogue.tip">
+                  <p className="text-center text-[11px] text-muted-foreground">
+                    Tip: pick an item, type the qty, then press{" "}
+                    <kbd className="rounded border bg-muted px-1.5 py-0.5 font-mono">Enter</kbd> to
+                    add it instantly and keep going.
+                  </p>
+                </LayoutPart>
 
-      <LayoutSection id="snacks.popular">
-      <PopularSnacksCard />
-      </LayoutSection>
+                <LayoutPart id="snacks.catalogue.cart">
+                  {cart.length > 0 && (
+                    <div className="frost-well space-y-2 rounded-xl border p-3">
+                      {cart.map((r, idx) => {
+                        const key = cartRowKey(r);
+                        return (
+                          <div
+                            key={idx}
+                            className="flex items-center justify-between gap-2 text-sm"
+                          >
+                            <span className="flex-1 truncate">
+                              {r.item_name} · {money(r.unit_price)} each
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="size-7"
+                                aria-label="Decrease quantity"
+                                onClick={() => stepQty(idx, r.qty - 1)}
+                              >
+                                <Minus className="h-3.5 w-3.5" />
+                              </Button>
+                              <Input
+                                type="number"
+                                min={1}
+                                value={qtyDrafts[key] ?? String(r.qty)}
+                                onFocus={() =>
+                                  setQtyDrafts((d) => ({ ...d, [key]: String(r.qty) }))
+                                }
+                                onChange={(e) =>
+                                  setQtyDrafts((d) => ({ ...d, [key]: e.target.value }))
+                                }
+                                onBlur={(e) => commitQtyDraft(idx, e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                                }}
+                                className="h-8 w-14 text-center"
+                              />
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="size-7"
+                                aria-label="Increase quantity"
+                                onClick={() => stepQty(idx, r.qty + 1)}
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                            <span className="flex w-24 items-center justify-end gap-2 font-medium">
+                              {money(r.amount)}
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="size-8"
+                                aria-label="Remove item"
+                                onClick={() => setCart(cart.filter((_, i) => i !== idx))}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </span>
+                          </div>
+                        );
+                      })}
+                      <div className="flex justify-between border-t pt-2 text-sm font-semibold">
+                        <span>Snacks total</span>
+                        <span className="stat-value">{money(total)}</span>
+                      </div>
+                    </div>
+                  )}
+                </LayoutPart>
+              </LayoutParts>
+            </CardContent>
+          </Card>
+        </LayoutSection>
 
-      <LayoutSection id="snacks.sales">
-      <SnackSalesList />
-      </LayoutSection>
+        <LayoutSection id="snacks.stock">
+          <SnackStockCard />
+        </LayoutSection>
+
+        <LayoutSection id="snacks.popular">
+          <PopularSnacksCard />
+        </LayoutSection>
+
+        <LayoutSection id="snacks.sales">
+          <SnackSalesList />
+        </LayoutSection>
       </LayoutSections>
     </div>
   );

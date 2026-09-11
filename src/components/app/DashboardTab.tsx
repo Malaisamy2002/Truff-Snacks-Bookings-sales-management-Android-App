@@ -34,17 +34,20 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useBills, useUpdateBill } from "@/lib/data";
 import { useTurfBookings, useUpdateTurfBooking, useSnackSales, useExpensesV2 } from "@/lib/ops";
-import { billGrossTotal, billPaidAmount, bookingGrossTotal, formatDMY, money, whatsappUrl } from "@/lib/biz";
+import {
+  billGrossTotal,
+  billPaidAmount,
+  bookingGrossTotal,
+  formatDMY,
+  money,
+  whatsappUrl,
+} from "@/lib/biz";
 import { billDue, bookingDue } from "@/lib/dues";
 import { useTabEntries } from "@/lib/tabs";
 import { openExternal } from "@/lib/desktop";
 import { cn } from "@/lib/utils";
 import { LayoutSection, LayoutSections, LayoutPart, LayoutParts } from "./LayoutSection";
-import {
-  readAppSettings,
-  writeAppSettings,
-  monthlyReportDueKey,
-} from "@/lib/settings";
+import { readAppSettings, writeAppSettings, monthlyReportDueKey } from "@/lib/settings";
 import {
   downloadReportPdf,
   reportPdfMoney,
@@ -222,7 +225,6 @@ export function DashboardTab() {
       .reduce((n, p) => n + p.value, 0);
     return { cash, online };
   }, [src, today]);
-
 
   // "Monthly summary on the 1st": checked here on every app open rather than
   // via a real scheduler (see monthlyReportDueKey's own note on why).
@@ -470,8 +472,6 @@ export function DashboardTab() {
     [dueList],
   );
 
-
-
   // Partial collection: each row can have its own in-progress amount, which
   // defaults to the full due (so a plain tap on Cash/UPI still settles it in
   // one go, matching the previous behaviour).
@@ -673,33 +673,42 @@ export function DashboardTab() {
       <LayoutSection id="home.today-numbers">
         <section className="space-y-3">
           <LayoutParts sectionId="home.today-numbers" className="space-y-3">
-          <LayoutPart id="home.today-numbers.heading">
-          <SectionHeading eyebrow="RIGHT NOW" title="Today's headline numbers" />
-          </LayoutPart>
-          <LayoutPart id="home.today-numbers.collected">
-            <HeroStat
-              label="Collected today"
-              value={money(day.collected)}
-              hint="Bills + turf + snacks"
-              icon={IndianRupee}
-              tone="good"
-            />
-          </LayoutPart>
-          <LayoutPart id="home.today-numbers.pending">
-            <HeroStat
-              label="Pending dues"
-              value={money(totals.totalDue)}
-              hint={`${dueList.length} unpaid · bills + turf`}
-              icon={AlertCircle}
-              tone={totals.totalDue > 0 ? "bad" : "primary"}
-            />
-          </LayoutPart>
+            <LayoutPart id="home.today-numbers.heading">
+              <SectionHeading eyebrow="RIGHT NOW" title="Today's headline numbers" />
+            </LayoutPart>
+            <LayoutPart id="home.today-numbers.collected">
+              <HeroStat
+                label="Collected today"
+                value={money(day.collected)}
+                hint="Bills + turf + snacks"
+                icon={IndianRupee}
+                tone="good"
+              />
+            </LayoutPart>
+            <LayoutPart id="home.today-numbers.pending">
+              <HeroStat
+                label="Pending dues"
+                value={money(totals.totalDue)}
+                hint={`${dueList.length} unpaid · bills + turf`}
+                icon={AlertCircle}
+                tone={totals.totalDue > 0 ? "bad" : "primary"}
+              />
+            </LayoutPart>
 
-          <LayoutPart id="home.today-numbers.supporting" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {supportingCards.map((c) => (
-              <MiniStat key={c.title} label={c.title} value={c.value} hint={c.hint} icon={c.icon} />
-            ))}
-          </LayoutPart>
+            <LayoutPart
+              id="home.today-numbers.supporting"
+              className="grid grid-cols-2 gap-3 lg:grid-cols-4"
+            >
+              {supportingCards.map((c) => (
+                <MiniStat
+                  key={c.title}
+                  label={c.title}
+                  value={c.value}
+                  hint={c.hint}
+                  icon={c.icon}
+                />
+              ))}
+            </LayoutPart>
           </LayoutParts>
         </section>
       </LayoutSection>
@@ -707,29 +716,31 @@ export function DashboardTab() {
       <LayoutSection id="home.month-compare">
         <section className="space-y-3">
           <LayoutParts sectionId="home.month-compare" className="space-y-3">
-          <LayoutPart id="home.month-compare.heading">
-          <SectionHeading
-            eyebrow="THIS MONTH"
-            title={`${monthLabel(thisMonth)} vs ${monthLabel(prevMonthKey(thisMonth))}`}
-            icon={TrendingUp}
-          />
-          </LayoutPart>
-          <LayoutPart id="home.month-compare.cards">
-          <Card className="frost">
-            <CardContent className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-6">
-              {monthCards.map((c) => (
-                <div key={c.title} className="frost-soft rounded-xl border p-3">
-                  <p className="micro-label">{c.title}</p>
-                  <p className="stat-value mt-1 text-lg leading-tight">{money(c.value)}</p>
-                  <DeltaStat change={c.change} invert={c.invert} />
-                  {c.hint && (
-                    <p className="mt-1 text-[10px] leading-tight text-muted-foreground">{c.hint}</p>
-                  )}
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-          </LayoutPart>
+            <LayoutPart id="home.month-compare.heading">
+              <SectionHeading
+                eyebrow="THIS MONTH"
+                title={`${monthLabel(thisMonth)} vs ${monthLabel(prevMonthKey(thisMonth))}`}
+                icon={TrendingUp}
+              />
+            </LayoutPart>
+            <LayoutPart id="home.month-compare.cards">
+              <Card className="frost">
+                <CardContent className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-6">
+                  {monthCards.map((c) => (
+                    <div key={c.title} className="frost-soft rounded-xl border p-3">
+                      <p className="micro-label">{c.title}</p>
+                      <p className="stat-value mt-1 text-lg leading-tight">{money(c.value)}</p>
+                      <DeltaStat change={c.change} invert={c.invert} />
+                      {c.hint && (
+                        <p className="mt-1 text-[10px] leading-tight text-muted-foreground">
+                          {c.hint}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </LayoutPart>
           </LayoutParts>
         </section>
       </LayoutSection>
@@ -757,30 +768,33 @@ export function DashboardTab() {
       <LayoutSection id="home.cash-drawer">
         <section className="space-y-3">
           <LayoutParts sectionId="home.cash-drawer" className="space-y-3">
-          <LayoutPart id="home.cash-drawer.heading">
-          <SectionHeading eyebrow="CASH DRAWER" title="Cash in drawer today" icon={PiggyBank} />
-          </LayoutPart>
-          <LayoutPart id="home.cash-drawer.drawer">
-          <Card className="frost">
-            <CardContent className="p-4">
-              <div className="frost-well rounded-xl p-4">
-                <p
-                  className={cn(
-                    "stat-hero",
-                    cashReconciliation.expectedInDrawer < 0 ? "text-destructive" : "text-success",
-                  )}
-                >
-                  {money(cashReconciliation.expectedInDrawer)}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {money(cashReconciliation.cashCollectedToday)} cash collected −{" "}
-                  {money(cashReconciliation.cashExpensesToday)} expenses today. Count the till
-                  against this at closing (expenses are assumed cash unless you track otherwise).
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-          </LayoutPart>
+            <LayoutPart id="home.cash-drawer.heading">
+              <SectionHeading eyebrow="CASH DRAWER" title="Cash in drawer today" icon={PiggyBank} />
+            </LayoutPart>
+            <LayoutPart id="home.cash-drawer.drawer">
+              <Card className="frost">
+                <CardContent className="p-4">
+                  <div className="frost-well rounded-xl p-4">
+                    <p
+                      className={cn(
+                        "stat-hero",
+                        cashReconciliation.expectedInDrawer < 0
+                          ? "text-destructive"
+                          : "text-success",
+                      )}
+                    >
+                      {money(cashReconciliation.expectedInDrawer)}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {money(cashReconciliation.cashCollectedToday)} cash collected −{" "}
+                      {money(cashReconciliation.cashExpensesToday)} expenses today. Count the till
+                      against this at closing (expenses are assumed cash unless you track
+                      otherwise).
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </LayoutPart>
           </LayoutParts>
         </section>
       </LayoutSection>
@@ -825,7 +839,6 @@ export function DashboardTab() {
         />
       </LayoutSection>
 
-
       <LayoutSection id="home.turf-utilization">
         <TurfUtilizationCard bookings={bookings} />
       </LayoutSection>
@@ -833,121 +846,121 @@ export function DashboardTab() {
       <LayoutSection id="home.collect-now">
         <section className="space-y-3">
           <LayoutParts sectionId="home.collect-now" className="space-y-3">
-          <LayoutPart id="home.collect-now.heading">
-          <SectionHeading
-            eyebrow="COLLECTIONS"
-            title="Collect now"
-            hint={`${money(totals.totalDue)} outstanding`}
-            action={
-              <SortMenu
-                options={DUES_SORT_OPTIONS}
-                field={dueSort.field}
-                dir={dueSort.dir}
-                onFieldChange={(f) => {
-                  dueSort.setField(f);
-                  setDueVisible(25);
-                }}
-                onToggleDir={() => {
-                  dueSort.toggleDir();
-                  setDueVisible(25);
-                }}
+            <LayoutPart id="home.collect-now.heading">
+              <SectionHeading
+                eyebrow="COLLECTIONS"
+                title="Collect now"
+                hint={`${money(totals.totalDue)} outstanding`}
+                action={
+                  <SortMenu
+                    options={DUES_SORT_OPTIONS}
+                    field={dueSort.field}
+                    dir={dueSort.dir}
+                    onFieldChange={(f) => {
+                      dueSort.setField(f);
+                      setDueVisible(25);
+                    }}
+                    onToggleDir={() => {
+                      dueSort.toggleDir();
+                      setDueVisible(25);
+                    }}
+                  />
+                }
               />
-            }
-          />
-          </LayoutPart>
-          <LayoutPart id="home.collect-now.list">
-          <Card className="frost">
-            <CardContent className="space-y-4 p-4">
-              {dueList.length === 0 && (
-                <p className="flex items-center justify-center gap-1.5 py-6 text-center text-sm text-muted-foreground">
-                  No pending dues. Everything is collected
-                  <PartyPopper className="h-4 w-4 text-success" />
-                </p>
-              )}
-              {groupedDueList.map(({ bucket, rows }) => (
-                <div key={bucket} className="space-y-2">
-                  <p
-                    className={cn(
-                      "stat-label",
-                      bucket === "overdue" ? "text-destructive" : "text-muted-foreground",
-                    )}
-                  >
-                    {AGE_BUCKET_META[bucket]} · {rows.length}
-                  </p>
-                  {rows.map((row) => (
-                    <div
-                      key={row.key}
-                      className="frost-soft lift flex flex-wrap items-center gap-2 rounded-xl border p-3"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{row.label}</p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {row.sub} · {formatDMY(row.date)}
-                        </p>
-                      </div>
-                      <Badge variant="outline" className={LINE_BADGE[row.kind]}>
-                        {row.kind === "bill" ? "Bill" : "Turf"}
-                      </Badge>
-
-                      <p className="text-sm font-bold text-destructive">{money(row.due)}</p>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={row.due}
-                        value={amountFor(row)}
-                        onChange={(e) =>
-                          setCollectAmounts((prev) => ({ ...prev, [row.key]: e.target.value }))
-                        }
-                        className="h-8 w-20 px-2 text-xs"
-                        aria-label={`Amount to collect from ${row.label}`}
-                      />
-                      <div className="flex gap-1">
-                        {row.phone && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 w-8 p-0"
-                            onClick={() => sendReminder(row)}
-                            aria-label={`Send WhatsApp reminder to ${row.label}`}
-                          >
-                            <MessageCircle className="h-3.5 w-3.5" />
-                          </Button>
+            </LayoutPart>
+            <LayoutPart id="home.collect-now.list">
+              <Card className="frost">
+                <CardContent className="space-y-4 p-4">
+                  {dueList.length === 0 && (
+                    <p className="flex items-center justify-center gap-1.5 py-6 text-center text-sm text-muted-foreground">
+                      No pending dues. Everything is collected
+                      <PartyPopper className="h-4 w-4 text-success" />
+                    </p>
+                  )}
+                  {groupedDueList.map(({ bucket, rows }) => (
+                    <div key={bucket} className="space-y-2">
+                      <p
+                        className={cn(
+                          "stat-label",
+                          bucket === "overdue" ? "text-destructive" : "text-muted-foreground",
                         )}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 gap-1 px-2 text-xs"
-                          onClick={() => collect(row, "Cash")}
-                          disabled={updateBill.isPending || updateBooking.isPending}
+                      >
+                        {AGE_BUCKET_META[bucket]} · {rows.length}
+                      </p>
+                      {rows.map((row) => (
+                        <div
+                          key={row.key}
+                          className="frost-soft lift flex flex-wrap items-center gap-2 rounded-xl border p-3"
                         >
-                          <Banknote className="h-3.5 w-3.5" /> Cash
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="h-8 gap-1 px-2 text-xs"
-                          onClick={() => collect(row, "UPI")}
-                          disabled={updateBill.isPending || updateBooking.isPending}
-                        >
-                          <Smartphone className="h-3.5 w-3.5" /> UPI
-                        </Button>
-                      </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium">{row.label}</p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {row.sub} · {formatDMY(row.date)}
+                            </p>
+                          </div>
+                          <Badge variant="outline" className={LINE_BADGE[row.kind]}>
+                            {row.kind === "bill" ? "Bill" : "Turf"}
+                          </Badge>
+
+                          <p className="text-sm font-bold text-destructive">{money(row.due)}</p>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={row.due}
+                            value={amountFor(row)}
+                            onChange={(e) =>
+                              setCollectAmounts((prev) => ({ ...prev, [row.key]: e.target.value }))
+                            }
+                            className="h-8 w-20 px-2 text-xs"
+                            aria-label={`Amount to collect from ${row.label}`}
+                          />
+                          <div className="flex gap-1">
+                            {row.phone && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0"
+                                onClick={() => sendReminder(row)}
+                                aria-label={`Send WhatsApp reminder to ${row.label}`}
+                              >
+                                <MessageCircle className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 gap-1 px-2 text-xs"
+                              onClick={() => collect(row, "Cash")}
+                              disabled={updateBill.isPending || updateBooking.isPending}
+                            >
+                              <Banknote className="h-3.5 w-3.5" /> Cash
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="h-8 gap-1 px-2 text-xs"
+                              onClick={() => collect(row, "UPI")}
+                              disabled={updateBill.isPending || updateBooking.isPending}
+                            >
+                              <Smartphone className="h-3.5 w-3.5" /> UPI
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   ))}
-                </div>
-              ))}
-              {dueList.length > dueVisible && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => setDueVisible((v) => v + 25)}
-                >
-                  Show more ({dueList.length - dueVisible} remaining)
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-          </LayoutPart>
+                  {dueList.length > dueVisible && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => setDueVisible((v) => v + 25)}
+                    >
+                      Show more ({dueList.length - dueVisible} remaining)
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            </LayoutPart>
           </LayoutParts>
         </section>
       </LayoutSection>

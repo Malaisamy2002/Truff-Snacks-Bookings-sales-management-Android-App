@@ -120,7 +120,6 @@ export const LAYOUT_REGISTRY: TabDef[] = [
       { id: "home.collect-now", label: "Collect now", kind: "list" },
       { id: "home.profit-trend", label: "Profit trend · 6 months", kind: "chart" },
     ],
-
   },
   {
     tabId: "turf",

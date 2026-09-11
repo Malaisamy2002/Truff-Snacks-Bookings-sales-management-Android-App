@@ -125,7 +125,6 @@ export const SECTION_PARTS: Record<string, PartDef[]> = {
     p("bills.list.items", "Bill rows", "list", true),
   ],
 
-
   /* ---------------------------- Money --------------------------- */
   "money.month-summary": [
     p("money.month-summary.in", "Money in", "summary"),

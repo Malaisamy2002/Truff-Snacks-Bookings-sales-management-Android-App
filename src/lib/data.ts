@@ -312,7 +312,9 @@ export function customerLifetimeStats(
   customers: CustomerRec[],
   data: {
     bills: (Pick<Bill, "customer_name" | "customer_phone" | "total" | "bill_date"> &
-      Partial<Pick<Bill, "id" | "status" | "amount_paid" | "payment_mode" | "tax_amount" | "tax_lines">>)[];
+      Partial<
+        Pick<Bill, "id" | "status" | "amount_paid" | "payment_mode" | "tax_amount" | "tax_lines">
+      >)[];
     bookings: {
       id: string;
       customer_name: string;
@@ -335,7 +337,12 @@ export function customerLifetimeStats(
       tax_amount?: number;
       tax_lines?: { label: string; value: number }[];
     }[];
-    sales: { customer_name: string | null; phone?: string | null; total: number; sale_date: string }[];
+    sales: {
+      customer_name: string | null;
+      phone?: string | null;
+      total: number;
+      sale_date: string;
+    }[];
     /** The tab ledger — without it a balance moved to the tab is invisible here. */
     tabEntries?: TabEntry[];
   },

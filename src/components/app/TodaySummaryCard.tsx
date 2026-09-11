@@ -53,35 +53,35 @@ export function TodaySummaryCard() {
           className="grid grid-cols-2 gap-3 sm:grid-cols-4"
         >
           <LayoutPart id="bills.today-summary.count">
-          <Stat
-            icon={<ReceiptText className="size-4 text-primary" />}
-            label="Bills today"
-            value={String(stats.count)}
-            hint={`${stats.bookings} turf booking${stats.bookings === 1 ? "" : "s"}`}
-          />
+            <Stat
+              icon={<ReceiptText className="size-4 text-primary" />}
+              label="Bills today"
+              value={String(stats.count)}
+              hint={`${stats.bookings} turf booking${stats.bookings === 1 ? "" : "s"}`}
+            />
           </LayoutPart>
           <LayoutPart id="bills.today-summary.billed">
-          <Stat
-            icon={<IndianRupee className="size-4 text-primary" />}
-            label="Billed"
-            value={money(stats.billed)}
-          />
+            <Stat
+              icon={<IndianRupee className="size-4 text-primary" />}
+              label="Billed"
+              value={money(stats.billed)}
+            />
           </LayoutPart>
           <LayoutPart id="bills.today-summary.collected">
-          <Stat
-            icon={<TrendingUp className="size-4 text-success" />}
-            label="Collected"
-            value={money(stats.collected)}
-            good
-          />
+            <Stat
+              icon={<TrendingUp className="size-4 text-success" />}
+              label="Collected"
+              value={money(stats.collected)}
+              good
+            />
           </LayoutPart>
           <LayoutPart id="bills.today-summary.pending">
-          <Stat
-            icon={<IndianRupee className="size-4 text-destructive" />}
-            label="Pending"
-            value={money(stats.due)}
-            danger
-          />
+            <Stat
+              icon={<IndianRupee className="size-4 text-destructive" />}
+              label="Pending"
+              value={money(stats.due)}
+              danger
+            />
           </LayoutPart>
         </LayoutParts>
       </CardContent>

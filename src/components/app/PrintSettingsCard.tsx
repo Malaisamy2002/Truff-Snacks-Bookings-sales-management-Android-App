@@ -4,6 +4,7 @@ import { Eye, Printer, RotateCcw, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -26,6 +27,7 @@ import {
   type LineSpacingId,
   type PaperId,
 } from "@/lib/print";
+import { UPI_APPS, type UpiAppId } from "@/lib/receipt-upi";
 import { formatDMY } from "@/lib/biz";
 import { dayKey } from "@/lib/analytics";
 import { isAndroid } from "@/lib/desktop";
@@ -335,6 +337,32 @@ export function PrintSettingsCard() {
                   placeholder="yourshop@upi"
                 />
               </SettingsField>
+              <SettingsField
+                label="UPI apps shown"
+                hint="Which app chips print under the QR code. Defaults to GPay + PhonePe."
+                full
+              >
+                <div className="flex flex-wrap gap-4">
+                  {UPI_APPS.map((app) => (
+                    <label key={app.id} className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={settings.upiApps.includes(app.id)}
+                        onCheckedChange={(checked) => {
+                          const next: UpiAppId[] = checked
+                            ? [...settings.upiApps, app.id]
+                            : settings.upiApps.filter((id) => id !== app.id);
+                          // Keep at least one app checked — an empty list
+                          // would otherwise silently fall back to the
+                          // GPay+PhonePe default, leaving the checkboxes
+                          // out of sync with what actually prints.
+                          if (next.length) set("upiApps", next);
+                        }}
+                      />
+                      {app.name}
+                    </label>
+                  ))}
+                </div>
+              </SettingsField>
             </SettingsGrid>
           </SettingsGroup>
 
@@ -402,7 +430,7 @@ export function PrintSettingsCard() {
                 variant="ghost"
                 onClick={() => {
                   save(DEFAULT_PRINT_SETTINGS);
-                  toast.success("Reset to thermal 80 mm default");
+                  toast.success("Reset to premium thermal 80 mm default");
                 }}
               >
                 <RotateCcw className="mr-1 h-4 w-4" /> Reset defaults

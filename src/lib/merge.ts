@@ -124,10 +124,7 @@ export function mergeMath(
  * posted to the customer's tab is the same tax-inclusive figure the printed
  * invoice shows as Balance due — never the bare pre-tax total.
  */
-export function mergeTax(
-  total: number,
-  s: Parameters<typeof taxBreakdown>[1] = readAppSettings(),
-) {
+export function mergeTax(total: number, s: Parameters<typeof taxBreakdown>[1] = readAppSettings()) {
   const taxable = round2(total);
   const { taxAmount, lines } = taxBreakdown(taxable, s);
   return { taxable, taxAmount, taxLines: lines, gross: taxable + taxAmount };
@@ -200,10 +197,11 @@ export function buildMergedItems(
 ): MergedItemsResult {
   const items: BillItem[] = [];
   for (const b of bookings) {
-    // `??`, not `||` — see Finding #3: a genuinely comped turf_amount of 0
-    // must be respected, only a missing (null/undefined) legacy value should
-    // fall back to the reconstructed gross.
-    const turfGross = b.turf_amount ?? b.total_amount + (Number(b.discount) || 0);
+    // Older rows use zero when turf_amount was not present. Reconstruct those
+    // rows from their net total plus the already-applied discount; current
+    // rows carry the positive pre-discount turf_amount directly.
+    const storedTurf = Number(b.turf_amount) || 0;
+    const turfGross = storedTurf > 0 ? storedTurf : b.total_amount + (Number(b.discount) || 0);
     items.push({
       item: `Turf · ${b.slot_name} (${b.booking_no})`,
       qty: b.hours || 1,

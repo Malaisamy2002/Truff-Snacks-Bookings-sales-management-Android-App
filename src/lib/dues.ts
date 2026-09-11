@@ -163,8 +163,6 @@ export function saleMovedToDues(
   );
 }
 
-
-
 /**
  * Money still owed on a bill itself.
  *

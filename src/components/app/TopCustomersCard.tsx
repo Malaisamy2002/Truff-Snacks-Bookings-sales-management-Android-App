@@ -35,11 +35,7 @@ function List({
 }
 
 /** Who is worth keeping happy, who visits most, and who still owes. */
-export function TopCustomersCard({
-  ranking,
-}: {
-  ranking: CustomerRanking<CustomerLifetime>;
-}) {
+export function TopCustomersCard({ ranking }: { ranking: CustomerRanking<CustomerLifetime> }) {
   const { topSpenders, mostFrequent, owing } = ranking;
 
   return (

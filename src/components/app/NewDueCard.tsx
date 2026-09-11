@@ -54,69 +54,69 @@ export function NewDueCard() {
     <Card className="frost">
       <CardContent className="pt-5">
         <LayoutParts sectionId="dues.new-due" className="space-y-4">
-        <LayoutPart id="dues.new-due.customer">
-        <CustomerFields
-          name={name}
-          phone={phone}
-          onChange={(next) => {
-            setName(next.name);
-            setPhone(next.phone);
-          }}
-        />
-        </LayoutPart>
+          <LayoutPart id="dues.new-due.customer">
+            <CustomerFields
+              name={name}
+              phone={phone}
+              onChange={(next) => {
+                setName(next.name);
+                setPhone(next.phone);
+              }}
+            />
+          </LayoutPart>
 
-        <LayoutPart id="dues.new-due.business" className="space-y-1.5">
-          <Label className="text-xs">Business</Label>
-          <div className="flex gap-2">
-            {TAB_BUSINESSES.map((b) => (
-              <Button
-                key={b}
-                type="button"
-                variant={business === b ? "default" : "outline"}
-                className={cn("flex-1")}
-                onClick={() => setBusiness(b)}
-              >
-                {b}
-              </Button>
-            ))}
-          </div>
-        </LayoutPart>
+          <LayoutPart id="dues.new-due.business" className="space-y-1.5">
+            <Label className="text-xs">Business</Label>
+            <div className="flex gap-2">
+              {TAB_BUSINESSES.map((b) => (
+                <Button
+                  key={b}
+                  type="button"
+                  variant={business === b ? "default" : "outline"}
+                  className={cn("flex-1")}
+                  onClick={() => setBusiness(b)}
+                >
+                  {b}
+                </Button>
+              ))}
+            </div>
+          </LayoutPart>
 
-        <LayoutPart id="dues.new-due.amount" className="space-y-1.5">
-          <Label className="text-xs">Amount</Label>
-          <Input
-            type="number"
-            inputMode="decimal"
-            min="0"
-            placeholder="0"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-          />
-        </LayoutPart>
-        <LayoutPart id="dues.new-due.date" className="space-y-1.5">
-          <Label className="text-xs">Date</Label>
-          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        </LayoutPart>
+          <LayoutPart id="dues.new-due.amount" className="space-y-1.5">
+            <Label className="text-xs">Amount</Label>
+            <Input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              placeholder="0"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          </LayoutPart>
+          <LayoutPart id="dues.new-due.date" className="space-y-1.5">
+            <Label className="text-xs">Date</Label>
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </LayoutPart>
 
-        <LayoutPart id="dues.new-due.reason" className="space-y-1.5">
-          <Label className="text-xs">Note (optional)</Label>
-          <Input
-            placeholder="What is this due for?"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
-        </LayoutPart>
+          <LayoutPart id="dues.new-due.reason" className="space-y-1.5">
+            <Label className="text-xs">Note (optional)</Label>
+            <Input
+              placeholder="What is this due for?"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </LayoutPart>
 
-        <LayoutPart id="dues.new-due.save" className="space-y-4">
-        <Button className="w-full" disabled={!canSave} onClick={save}>
-          <PlusCircle className="mr-1 size-4" />
-          Add due {value > 0 ? money(value) : ""}
-        </Button>
-        <p className="text-xs text-muted-foreground">
-          Dues on bills and turf bookings are collected from those tabs — only add manual dues here
-          so the same amount is never owed twice.
-        </p>
-        </LayoutPart>
+          <LayoutPart id="dues.new-due.save" className="space-y-4">
+            <Button className="w-full" disabled={!canSave} onClick={save}>
+              <PlusCircle className="mr-1 size-4" />
+              Add due {value > 0 ? money(value) : ""}
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Dues on bills and turf bookings are collected from those tabs — only add manual dues
+              here so the same amount is never owed twice.
+            </p>
+          </LayoutPart>
         </LayoutParts>
       </CardContent>
     </Card>

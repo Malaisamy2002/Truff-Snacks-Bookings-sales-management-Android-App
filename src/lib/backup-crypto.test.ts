@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { decryptBackup, encryptBackup, isEncryptedBackup, WrongPassphraseError } from "./backup-crypto";
+import {
+  decryptBackup,
+  encryptBackup,
+  isEncryptedBackup,
+  WrongPassphraseError,
+} from "./backup-crypto";
 
 const bytesOf = (s: string) => new TextEncoder().encode(s);
 const textOf = (b: Uint8Array) => new TextDecoder().decode(b);

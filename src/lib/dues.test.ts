@@ -248,9 +248,7 @@ describe("due numbers", () => {
         entry_date: "2026-09-03",
       }),
     ];
-    expect(dueNoForRef(entries, TAB_REF_BILL, "b1", "INV-1", "2026-09-01")).toBe(
-      "D-030926-INV-1",
-    );
+    expect(dueNoForRef(entries, TAB_REF_BILL, "b1", "INV-1", "2026-09-01")).toBe("D-030926-INV-1");
     // No charge against the record → falls back to the record's own date.
     expect(dueNoForRef([], TAB_REF_BILL, "b1", "INV-1", "2026-09-01")).toBe("D-010926-INV-1");
   });
@@ -446,6 +444,8 @@ describe("bookingMovedToDues / saleMovedToDues", () => {
       saleMovedToDues(sale(), [entry({ ref_type: TAB_REF_SNACK_SALE, ref_id: "s1", amount: 200 })]),
     ).toBe(true);
     expect(saleMovedToDues(sale())).toBe(false);
-    expect(saleMovedToDues(sale({ payment_mode: "On tab", merged_into_bill_id: "b9" }))).toBe(false);
+    expect(saleMovedToDues(sale({ payment_mode: "On tab", merged_into_bill_id: "b9" }))).toBe(
+      false,
+    );
   });
 });

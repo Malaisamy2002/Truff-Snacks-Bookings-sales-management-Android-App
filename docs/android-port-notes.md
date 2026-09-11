@@ -107,10 +107,58 @@ without network access, so nothing native could be scaffolded or built).
   `fromBase64` still encode/decode the whole backup payload synchronously.
   Not changed in this pass since it's a behavior/perf change best validated
   with a real large dataset and on-device profiling, not guessed at blind.
-- **Share sheet / print** (§5), **back-button handling, touch-target audit,
-  icons/splash** (§6), and the **Tauri Android project + Gradle/signing
-  setup** (§8) are all still open — every one of them needs either the
-  generated `gen/android/` project, a device/emulator, or both.
+- **Back-button handling, touch-target audit, icons/splash** (§6), and the
+  **Tauri Android project + Gradle/signing setup** (§8) are all still open —
+  every one of them needs either the generated `gen/android/` project, a
+  device/emulator, or both. **Share sheet / print (§5) is no longer in this
+  list** — see the dated entry below.
+
+## Print (§5) implemented — UPI app-chip row added to match Windows
+
+This entry supersedes the "Share sheet / print (§5) ... still open" line
+that used to be here. That was stale: native printing has been fully wired
+for a while — `AndroidSavePlugin.kt`'s `printPdf` command (backed by
+`android.print.PrintManager`), exposed through the Rust plugin
+(`build.rs`'s `COMMANDS`, `permissions/default.toml`'s `allow-print-pdf`,
+`capabilities/mobile.json`'s `android-save:default`), and called from
+`desktop.ts`'s `printPdfFile()` → `receipt.ts`'s `printReceipt()`. This
+project's own `previewReceipt()` (save-and-open, since Android can't
+reliably open a `blob:` URL in a new tab) is also in place and is not
+Windows's approach — Windows keeps an in-dialog PDF preview instead, which
+doesn't apply here. **None of this has been confirmed against real printer
+hardware yet** — only reviewed against source; treat "opens the system
+print dialog" as unverified until tested on a device.
+
+What *was* actually missing, and has now been added: the printed premium
+receipt's "Scan & Pay" QR box didn't draw the row of UPI app chips
+(GPay/PhonePe/etc, driven by the shop's `upiApps` Settings choice) that the
+Windows build's `receipt-upi.ts` draws — `PrintSettings` here didn't even
+have an `upiApps` field, so the setting couldn't be saved, and the "Pay via
+UPI" button in `BillActions.tsx` didn't exist either. Fixed by:
+- `src/lib/receipt-upi.ts` (new) — app list, `resolveApps()`, `upiUri()`
+  (button-only, amount-less), `drawAppStrip()` (chip row), ported from
+  Windows and trimmed to what this project's simpler inline QR box needs
+  (not Windows's full boxed multi-variant panel system — this project's
+  premium layouts already draw their own box).
+- `src/lib/print.ts` — added the missing `upiApps: UpiAppId[]` field,
+  default, and normalize/validate logic.
+- `src/lib/receipt-premium.ts` — draws the chip row under the QR on both
+  the A4/A5 (wide) and 80mm (narrow) layouts, mono/colour following the
+  existing `wantColor` flag.
+- `src/components/app/PrintSettingsCard.tsx` — added the "UPI apps shown"
+  checkbox group.
+- `src/components/app/BillActions.tsx` — added the "Pay via UPI" button.
+- `src/lib/receipt-premium.test.ts` (new) — paper-dispatch coverage plus
+  chip-row coverage (default apps, custom selection, empty-falls-back,
+  narrow-layout).
+
+**Not yet done as part of this pass:** a real `npm install`/`vitest run` in
+this environment — the sandbox's network proxy denies all npm tarball
+downloads (`x-deny-reason: host_not_allowed`) regardless of registry, so
+none of the above has been confirmed to actually typecheck or pass tests.
+Run `npm run typecheck && npm test -- receipt-premium print` (or the
+equivalent `bun` commands, since this repo normally installs through a
+private registry mirror per `bun.lock`) before trusting this change.
 
 ## Suggested next step
 

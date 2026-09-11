@@ -393,7 +393,11 @@ describe("unmergeBill() keeping the bill — the due can't live in two places", 
     ];
     expect(bookingDue(restoredBooking, tabEntries)).toBe(0); // due lives on the tab
     expect(netTabAmountFor(tabEntries, TAB_REF_TURF_BOOKING, "k1")).toBe(1000);
-    const fixedBill = mergedBill({ amount_paid: 0, status: "unpaid", payment_mode: TAB_PAYMENT_MODE });
+    const fixedBill = mergedBill({
+      amount_paid: 0,
+      status: "unpaid",
+      payment_mode: TAB_PAYMENT_MODE,
+    });
     expect(billDue(fixedBill)).toBe(0); // and the bill claims nothing on top
     expect(billCollected(fixedBill)).toBe(0); // no phantom revenue either
   });

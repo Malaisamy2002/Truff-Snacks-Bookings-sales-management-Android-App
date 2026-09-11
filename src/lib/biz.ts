@@ -288,12 +288,12 @@ export const bookingTaxable = (
   // total_amount can't understate the bill; total_amount is the fallback for
   // rows that carry no slot/snacks detail.
   const courts = b.courts ?? 1;
-  // `??`, not `||` — a legitimately comped/free booking can have
-  // turf_amount === 0 on purpose, which must be respected as-is rather than
-  // silently replaced by a recomputed (and possibly wrong, for custom
-  // 15/30/45-min rates) non-zero value. Only a genuinely missing value
-  // (null/undefined, e.g. a pre-turf_amount legacy row) should fall back.
-  const turf = b.turf_amount ?? (b.hours ?? 0) * (b.rate_per_hour ?? 0) * courts;
+  // Older rows were normalised with a zero turf_amount when the field was
+  // absent. Treat zero as that legacy-missing sentinel and reconstruct the
+  // gross from the booking inputs; a genuinely free booking also has a zero
+  // total, so this remains harmless for comped rows.
+  const storedTurf = Number(b.turf_amount) || 0;
+  const turf = storedTurf > 0 ? storedTurf : (b.hours ?? 0) * (b.rate_per_hour ?? 0) * courts;
   const derived = turf + (b.snacks_total ?? 0) - (b.discount ?? 0);
   if (derived > 0) return rupees(derived);
   return Math.max(0, rupees(b.total_amount ?? 0));

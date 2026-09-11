@@ -258,8 +258,7 @@ describe("tax on Turf and Snacks receipts", () => {
   const gst18 = (taxable: number) => ({
     tax_amount: Math.round(taxable * 0.18),
     tax_lines: [
-      { label: "CGST @9%", value: Math.round(taxable * 0.18) - Math.floor(taxable * 0.09),
-      },
+      { label: "CGST @9%", value: Math.round(taxable * 0.18) - Math.floor(taxable * 0.09) },
       { label: "SGST @9%", value: Math.floor(taxable * 0.09) },
     ],
   });

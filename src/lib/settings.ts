@@ -137,7 +137,9 @@ export function normalizeAppSettings(value: unknown): AppSettings {
       DEFAULT_APP_SETTINGS.monthlyReportEnabled,
     ),
     monthlyReportLastSentKey:
-      typeof saved["monthlyReportLastSentKey"] === "string" ? saved["monthlyReportLastSentKey"] : null,
+      typeof saved["monthlyReportLastSentKey"] === "string"
+        ? saved["monthlyReportLastSentKey"]
+        : null,
   };
 }
 

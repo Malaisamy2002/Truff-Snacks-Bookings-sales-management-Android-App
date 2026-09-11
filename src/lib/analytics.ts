@@ -271,8 +271,7 @@ export function periodStats(
     sales.reduce((n, s) => n + snackSaleCollected(s, appSettings), 0) +
     tabCollected;
   const spend = expenses.reduce((n, e) => n + rupees(e.amount), 0);
-  const dues =
-    billsDues + bookings.reduce((n, b) => n + bookingDue(b, entries, appSettings), 0);
+  const dues = billsDues + bookings.reduce((n, b) => n + bookingDue(b, entries, appSettings), 0);
 
   // Tax collected is money passed through to the government, not the
   // business's own earnings — profit is based on net (pre-tax) revenue so

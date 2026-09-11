@@ -32,9 +32,7 @@ describe("sniffImageMimeType()", () => {
 
   it("recognizes a WebP signature", () => {
     // RIFF....WEBP
-    const bytes = new Uint8Array([
-      0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50,
-    ]);
+    const bytes = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]);
     expect(sniffImageMimeType(bytes)).toBe("image/webp");
   });
 

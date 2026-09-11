@@ -382,7 +382,7 @@ async function readReceiptFromDexie(path: string): Promise<Uint8Array | null> {
 
 export async function openReceipt(path: string): Promise<string | null> {
   if (isAndroid()) {
-    let bytes: Uint8Array | null = (await appDocumentExists(path))
+    const bytes: Uint8Array | null = (await appDocumentExists(path))
       ? await readAppDocument(path)
       : await readReceiptFromDexie(path);
     if (!bytes) throw new Error(RECEIPT_NOT_FOUND_MESSAGE);

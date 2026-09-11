@@ -1,5 +1,12 @@
 import { db, table, DATA_TABLES, type DataTable, type Row } from "./localdb";
-import { isAndroid, isDesktop, saveExportFile, saveToAppDocuments, bytesToBase64, base64ToBytes } from "./desktop";
+import {
+  isAndroid,
+  isDesktop,
+  saveExportFile,
+  saveToAppDocuments,
+  bytesToBase64,
+  base64ToBytes,
+} from "./desktop";
 
 export const BACKUP_TABLES = DATA_TABLES;
 
@@ -92,7 +99,8 @@ export async function downloadBackup(
     // A failed Android save throws with the device's own reason so the
     // caller's catch can show it, instead of returning null — which the
     // caller can't tell apart from "the person cancelled".
-    if (!result.saved) throw new Error(`Couldn't save the backup: ${result.error ?? "unknown reason"}`);
+    if (!result.saved)
+      throw new Error(`Couldn't save the backup: ${result.error ?? "unknown reason"}`);
     return result.path ?? name;
   }
 
@@ -157,53 +165,49 @@ export function backupSummary(backup: BackupFile) {
 export async function restoreBackup(backup: BackupFile, mode: "replace" | "merge" = "replace") {
   let inserted = 0;
 
-  await db.transaction(
-    "rw",
-    [...BACKUP_TABLES.map((t) => table(t)), db.receipts],
-    async () => {
-      if (mode === "replace") {
-        for (const t of [...BACKUP_TABLES].reverse()) {
-          await table(t).clear();
-        }
-        // Photos are keyed by `receipt_path`, so a "replace" that wipes the
-        // expense rows but leaves old photos behind would strand them —
-        // clear them together so the two stay in sync.
-        await db.receipts.clear();
+  await db.transaction("rw", [...BACKUP_TABLES.map((t) => table(t)), db.receipts], async () => {
+    if (mode === "replace") {
+      for (const t of [...BACKUP_TABLES].reverse()) {
+        await table(t).clear();
       }
+      // Photos are keyed by `receipt_path`, so a "replace" that wipes the
+      // expense rows but leaves old photos behind would strand them —
+      // clear them together so the two stay in sync.
+      await db.receipts.clear();
+    }
 
-      for (const t of BACKUP_TABLES) {
-        const rows = (backup.tables[t] ?? []) as Row[];
-        if (rows.length === 0) continue;
-        const target = table(t);
-        if (mode === "merge") {
-          // Dedup on each table's OWN primary key, not a hardcoded "id" —
-          // most DATA_TABLES use "id", but app_settings is keyed by "key"
-          // (see localdb.ts). Hardcoding "id" made every app_settings row
-          // (existing and incoming) collapse to the same "undefined" bucket,
-          // so a merge restore silently kept whichever settings the target
-          // device already had and dropped the incoming ones with no error.
-          const primKey = target.schema.primKey.name as string;
-          const existing = new Set((await target.toArray()).map((r) => String(r[primKey])));
-          const fresh = rows.filter((r) => !existing.has(String(r[primKey])));
-          if (fresh.length === 0) continue;
-          await target.bulkAdd(fresh);
-          inserted += fresh.length;
-        } else {
-          await target.bulkPut(rows);
-          inserted += rows.length;
-        }
+    for (const t of BACKUP_TABLES) {
+      const rows = (backup.tables[t] ?? []) as Row[];
+      if (rows.length === 0) continue;
+      const target = table(t);
+      if (mode === "merge") {
+        // Dedup on each table's OWN primary key, not a hardcoded "id" —
+        // most DATA_TABLES use "id", but app_settings is keyed by "key"
+        // (see localdb.ts). Hardcoding "id" made every app_settings row
+        // (existing and incoming) collapse to the same "undefined" bucket,
+        // so a merge restore silently kept whichever settings the target
+        // device already had and dropped the incoming ones with no error.
+        const primKey = target.schema.primKey.name as string;
+        const existing = new Set((await target.toArray()).map((r) => String(r[primKey])));
+        const fresh = rows.filter((r) => !existing.has(String(r[primKey])));
+        if (fresh.length === 0) continue;
+        await target.bulkAdd(fresh);
+        inserted += fresh.length;
+      } else {
+        await target.bulkPut(rows);
+        inserted += rows.length;
       }
+    }
 
-      for (const photo of backup.photos ?? []) {
-        if (mode === "merge" && (await db.receipts.get(photo.path))) continue; // never overwrite
-        await db.receipts.put({
-          path: photo.path,
-          blob: new Blob([base64ToBytes(photo.data).buffer as ArrayBuffer]),
-          created_at: photo.created_at,
-        });
-      }
-    },
-  );
+    for (const photo of backup.photos ?? []) {
+      if (mode === "merge" && (await db.receipts.get(photo.path))) continue; // never overwrite
+      await db.receipts.put({
+        path: photo.path,
+        blob: new Blob([base64ToBytes(photo.data).buffer as ArrayBuffer]),
+        created_at: photo.created_at,
+      });
+    }
+  });
 
   // Best-effort, outside the transaction (real filesystem I/O, not
   // IndexedDB): also write each restored photo to disk on desktop/Android,

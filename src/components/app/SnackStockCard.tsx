@@ -124,92 +124,92 @@ export function SnackStockCard() {
     <Card>
       <CardContent className="space-y-4">
         <LayoutParts sectionId="snacks.stock" className="space-y-4">
-        <LayoutPart id="snacks.stock.heading" className="space-y-4">
-        <SectionHeading
-          icon={Boxes}
-          eyebrow="Inventory"
-          title="Stock counts"
-          action={
-            <div className="flex flex-wrap items-center gap-2">
-              <SortMenu
-                options={STOCK_SORT_OPTIONS}
-                field={sort.field}
-                dir={sort.dir}
-                onFieldChange={sort.setField}
-                onToggleDir={sort.toggleDir}
-              />
-              {categories.length > 1 && (
-                <Select value={category} onValueChange={setCategory}>
-                  <SelectTrigger className="h-8 w-40">
-                    <SelectValue placeholder="Category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL_CATEGORIES}>All categories</SelectItem>
-                    {categories.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-          }
-        />
-        {active.length === 0 && (
-          <p className="text-sm text-muted-foreground">Add snack items in Settings first.</p>
-        )}
-
-        {low.length > 0 && (
-          <div className="flex items-start gap-2 rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-            <p>
-              Running low:{" "}
-              <span className="font-medium">
-                {low.map((i) => `${i.item_name} (${i.stock_quantity})`).join(", ")}
-              </span>
-            </p>
-          </div>
-        )}
-        </LayoutPart>
-
-        <LayoutPart id="snacks.stock.table" className="space-y-4">
-      <ListDisclosure storageKey="snacks.stock" label="Stock items" count={active.length}>
-        {groups.map(([groupName, groupItems]) => (
-          <div key={groupName} className="space-y-2">
-            {category === ALL_CATEGORIES && categories.length > 1 && (
-              <p className="micro-label">{groupName}</p>
+          <LayoutPart id="snacks.stock.heading" className="space-y-4">
+            <SectionHeading
+              icon={Boxes}
+              eyebrow="Inventory"
+              title="Stock counts"
+              action={
+                <div className="flex flex-wrap items-center gap-2">
+                  <SortMenu
+                    options={STOCK_SORT_OPTIONS}
+                    field={sort.field}
+                    dir={sort.dir}
+                    onFieldChange={sort.setField}
+                    onToggleDir={sort.toggleDir}
+                  />
+                  {categories.length > 1 && (
+                    <Select value={category} onValueChange={setCategory}>
+                      <SelectTrigger className="h-8 w-40">
+                        <SelectValue placeholder="Category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={ALL_CATEGORIES}>All categories</SelectItem>
+                        {categories.map((c) => (
+                          <SelectItem key={c} value={c}>
+                            {c}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              }
+            />
+            {active.length === 0 && (
+              <p className="text-sm text-muted-foreground">Add snack items in Settings first.</p>
             )}
-            {groupItems.map((i) => (
-              <StockRow
-                key={i.id}
-                item={i}
-                draftValue={draft[i.id] ?? ""}
-                pending={pendingId === i.id}
-                onDraftChange={(value) => setDraft((d) => ({ ...d, [i.id]: value }))}
-                onAdd={() => addFromDraft(i)}
-                onIncrement={() =>
-                  setStock(
-                    i,
-                    i.stock_quantity + 1,
-                    i.stock_quantity,
-                    `${i.item_name} stock increased to ${i.stock_quantity + 1}`,
-                  )
-                }
-                onDecrement={() =>
-                  setStock(
-                    i,
-                    i.stock_quantity - 1,
-                    i.stock_quantity,
-                    `${i.item_name} stock reduced to ${i.stock_quantity - 1}`,
-                  )
-                }
-              />
-            ))}
-          </div>
-        ))}
-      </ListDisclosure>
-        </LayoutPart>
+
+            {low.length > 0 && (
+              <div className="flex items-start gap-2 rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                <p>
+                  Running low:{" "}
+                  <span className="font-medium">
+                    {low.map((i) => `${i.item_name} (${i.stock_quantity})`).join(", ")}
+                  </span>
+                </p>
+              </div>
+            )}
+          </LayoutPart>
+
+          <LayoutPart id="snacks.stock.table" className="space-y-4">
+            <ListDisclosure storageKey="snacks.stock" label="Stock items" count={active.length}>
+              {groups.map(([groupName, groupItems]) => (
+                <div key={groupName} className="space-y-2">
+                  {category === ALL_CATEGORIES && categories.length > 1 && (
+                    <p className="micro-label">{groupName}</p>
+                  )}
+                  {groupItems.map((i) => (
+                    <StockRow
+                      key={i.id}
+                      item={i}
+                      draftValue={draft[i.id] ?? ""}
+                      pending={pendingId === i.id}
+                      onDraftChange={(value) => setDraft((d) => ({ ...d, [i.id]: value }))}
+                      onAdd={() => addFromDraft(i)}
+                      onIncrement={() =>
+                        setStock(
+                          i,
+                          i.stock_quantity + 1,
+                          i.stock_quantity,
+                          `${i.item_name} stock increased to ${i.stock_quantity + 1}`,
+                        )
+                      }
+                      onDecrement={() =>
+                        setStock(
+                          i,
+                          i.stock_quantity - 1,
+                          i.stock_quantity,
+                          `${i.item_name} stock reduced to ${i.stock_quantity - 1}`,
+                        )
+                      }
+                    />
+                  ))}
+                </div>
+              ))}
+            </ListDisclosure>
+          </LayoutPart>
         </LayoutParts>
       </CardContent>
     </Card>

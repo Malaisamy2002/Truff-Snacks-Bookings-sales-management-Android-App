@@ -63,8 +63,8 @@ export function ClearAllDataCard() {
             <AlertDialogTitle>Erase everything on this device?</AlertDialogTitle>
             <AlertDialogDescription>
               This permanently deletes every customer, bill, turf booking, snack sale, expense,
-              customer tab, receipt and saved setting — not just test data. There is no undo. If
-              you need to keep anything, cancel and take a backup first from{" "}
+              customer tab, receipt and saved setting — not just test data. There is no undo. If you
+              need to keep anything, cancel and take a backup first from{" "}
               <strong>Backup &amp; restore</strong> above.
             </AlertDialogDescription>
           </AlertDialogHeader>

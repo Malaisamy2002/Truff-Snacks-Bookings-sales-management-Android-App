@@ -1,9 +1,11 @@
-import { Copy, Download, Printer, Share2 } from "lucide-react";
+import { Copy, Download, Printer, QrCode, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { billText, copyText, whatsappUrl, type Bill } from "@/lib/biz";
 import { downloadBillPdf, printBillPdf, shareBillPdf } from "@/lib/receipt";
 import { INVOICE_SECTIONS, type InvoiceSection } from "@/lib/desktop";
+import { usePrintSettings } from "@/lib/print";
+import { upiUri } from "@/lib/receipt-upi";
 
 export function BillActions({
   bill,
@@ -21,8 +23,25 @@ export function BillActions({
    * the bill text/number is no longer how this money gets collected. */
   restricted?: boolean;
 }) {
+  const { settings } = usePrintSettings();
+  const upiId = settings.upiId.trim();
+
+  const payViaUpi = () => {
+    const uri = upiUri({
+      upiId,
+      payeeName: settings.shopName,
+      note: `Bill ${bill.invoice_no}`,
+    });
+    // upi:// only means anything to a UPI app, so treat it as a link the OS
+    // hands off to GPay/PhonePe/etc. rather than something to fetch — same
+    // navigation a plain <a href="upi://..."> would do. window.location.href
+    // triggers that hand-off reliably in the Android WebView, where
+    // window.open often gets swallowed.
+    window.location.href = uri;
+  };
+
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+    <div className={`grid grid-cols-2 gap-2 ${upiId ? "sm:grid-cols-5" : "sm:grid-cols-4"}`}>
       <Button
         variant="outline"
         className="lift min-h-11"
@@ -72,6 +91,17 @@ export function BillActions({
       >
         <Copy className="size-4" />
       </Button>
+      {upiId && (
+        <Button
+          variant="outline"
+          className="lift min-h-11"
+          aria-label="Pay via UPI"
+          title="Pay via UPI"
+          onClick={payViaUpi}
+        >
+          <QrCode className="size-4" /> Pay via UPI
+        </Button>
+      )}
     </div>
   );
 }

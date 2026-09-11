@@ -39,9 +39,8 @@ const {
 } = await import("../src/lib/analytics");
 const { taxBreakdown, DEFAULT_APP_SETTINGS } = await import("../src/lib/settings");
 const { customerLifetimeStats } = await import("../src/lib/data");
-const { bookingDue, bookingCashCollected, bookingMovedToDues, saleMovedToDues } = await import(
-  "../src/lib/dues"
-);
+const { bookingDue, bookingCashCollected, bookingMovedToDues, saleMovedToDues } =
+  await import("../src/lib/dues");
 const { tabBalanceOf, tabKey } = await import("../src/lib/tabs");
 
 /* ------------------------------------------------------------------ setup */
@@ -590,24 +589,60 @@ const srcOctPaid = {
 };
 
 const octOpen = statsForMonth(srcOctOpen as never, OCT, DEFAULT_APP_SETTINGS);
-check("cash taken on the booking (not advance_paid)", bookingCashCollected(octBooking as never, octEntriesOpen as never), 400);
-check("booking flagged as moved to dues", bookingMovedToDues(octBooking as never, octEntriesOpen as never), true);
-check("snack sale flagged as moved to dues", saleMovedToDues(octSale as never, octEntriesOpen as never), true);
-check("booking owes nothing of its own", bookingDue(octBooking as never, octEntriesOpen as never), 0);
+check(
+  "cash taken on the booking (not advance_paid)",
+  bookingCashCollected(octBooking as never, octEntriesOpen as never),
+  400,
+);
+check(
+  "booking flagged as moved to dues",
+  bookingMovedToDues(octBooking as never, octEntriesOpen as never),
+  true,
+);
+check(
+  "snack sale flagged as moved to dues",
+  saleMovedToDues(octSale as never, octEntriesOpen as never),
+  true,
+);
+check(
+  "booking owes nothing of its own",
+  bookingDue(octBooking as never, octEntriesOpen as never),
+  0,
+);
 check("Oct collected while dues are open", octOpen.collected, 400);
 check("Oct revenue (turf + snacks, pre-tax)", octOpen.netRevenue, 1300);
 const splitOpen = paymentSplit(srcOctOpen as never, (iso: string) => monthKey(iso) === OCT);
-check("Oct split total while dues are open", splitOpen.reduce((n, r) => n + r.value, 0), 400);
-check("Oct split has no 'On tab' bucket", splitOpen.some((r) => r.name === "Other"), false);
+check(
+  "Oct split total while dues are open",
+  splitOpen.reduce((n, r) => n + r.value, 0),
+  400,
+);
+check(
+  "Oct split has no 'On tab' bucket",
+  splitOpen.some((r) => r.name === "Other"),
+  false,
+);
 
 const octPaid = statsForMonth(srcOctPaid as never, OCT, DEFAULT_APP_SETTINGS);
 check("Oct tabCollected after settling dues", octPaid.tabCollected, 900);
 check("Oct collected after settling (400 + 900, never 1900)", octPaid.collected, 1300);
 check("Oct collected reconciles with revenue", octPaid.collected, octPaid.netRevenue);
 const splitPaid = paymentSplit(srcOctPaid as never, (iso: string) => monthKey(iso) === OCT);
-check("Oct split total after settling", splitPaid.reduce((n, r) => n + r.value, 0), 1300);
-check("Oct split Cash leg (counter only)", splitPaid.find((r) => r.name === "Cash")?.value ?? 0, 400);
-check("Oct split UPI leg (dues collection)", splitPaid.find((r) => r.name === "UPI")?.value ?? 0, 900);
+check(
+  "Oct split total after settling",
+  splitPaid.reduce((n, r) => n + r.value, 0),
+  1300,
+);
+check(
+  "Oct split Cash leg (counter only)",
+  splitPaid.find((r) => r.name === "Cash")?.value ?? 0,
+  400,
+);
+check(
+  "Oct split UPI leg (dues collection)",
+  splitPaid.find((r) => r.name === "UPI")?.value ?? 0,
+  900,
+);
 
 /* ---------------------------------------------------------------- done */
 

@@ -132,14 +132,59 @@ const pad = (n: number, width = 5) => String(n).padStart(width, "0");
 /* ------------------------------------------------------------------ */
 
 const FIRST_NAMES = [
-  "Arjun","Vikram","Rahul","Sneha","Priya","Karthik","Divya","Sanjay","Meera","Aditya",
-  "Nikhil","Pooja","Ramesh","Anita","Suresh","Deepak","Kavya","Manoj","Lakshmi","Harish",
-  "Ganesh","Ritu","Naveen","Swathi","Vishal","Anjali","Prakash","Neha","Kiran","Gopal",
+  "Arjun",
+  "Vikram",
+  "Rahul",
+  "Sneha",
+  "Priya",
+  "Karthik",
+  "Divya",
+  "Sanjay",
+  "Meera",
+  "Aditya",
+  "Nikhil",
+  "Pooja",
+  "Ramesh",
+  "Anita",
+  "Suresh",
+  "Deepak",
+  "Kavya",
+  "Manoj",
+  "Lakshmi",
+  "Harish",
+  "Ganesh",
+  "Ritu",
+  "Naveen",
+  "Swathi",
+  "Vishal",
+  "Anjali",
+  "Prakash",
+  "Neha",
+  "Kiran",
+  "Gopal",
 ];
 
 const SURNAMES = [
-  "Sharma","Reddy","Nair","Iyer","Patel","Kumar","Menon","Rao","Verma","Pillai",
-  "Chopra","Joshi","Desai","Bose","Gupta","Shetty","Naidu","Mehta","Kulkarni","Banerjee",
+  "Sharma",
+  "Reddy",
+  "Nair",
+  "Iyer",
+  "Patel",
+  "Kumar",
+  "Menon",
+  "Rao",
+  "Verma",
+  "Pillai",
+  "Chopra",
+  "Joshi",
+  "Desai",
+  "Bose",
+  "Gupta",
+  "Shetty",
+  "Naidu",
+  "Mehta",
+  "Kulkarni",
+  "Banerjee",
 ];
 
 const SNACK_CATALOGUE: { name: string; category: string; price: number; cost: number }[] = [
@@ -339,7 +384,9 @@ export async function seedLoadTestData(
           if (rand() > chance) continue;
 
           const cust = pickCustomer();
-          const rate = weekend ? 1000 + Math.floor(rand() * 5) * 100 : 700 + Math.floor(rand() * 4) * 100;
+          const rate = weekend
+            ? 1000 + Math.floor(rand() * 5) * 100
+            : 700 + Math.floor(rand() * 4) * 100;
           const hours = 1;
           const turfAmount = rupees(rate * hours);
           // Offer: usually none, otherwise a 5–20% cut or a flat amount.
@@ -365,7 +412,8 @@ export async function seedLoadTestData(
             tax_amount: 0,
             tax_lines: [],
             advance_paid: advance,
-            payment_mode: advance > 0 ? PAY_MODES[Math.floor(rand() * PAY_MODES.length)]! : "Pending",
+            payment_mode:
+              advance > 0 ? PAY_MODES[Math.floor(rand() * PAY_MODES.length)]! : "Pending",
             status,
             discount,
             notes: "load-test",
@@ -453,7 +501,8 @@ export async function seedLoadTestData(
         const discount = rand() < 0.7 ? 0 : rupees(base * (0.05 + rand() * 0.15));
         const total = Math.max(0, rupees(base - discount));
         const payRoll = rand();
-        const paid = payRoll < 0.5 ? total : payRoll < 0.8 ? rupees(total * (0.3 + rand() * 0.4)) : 0;
+        const paid =
+          payRoll < 0.5 ? total : payRoll < 0.8 ? rupees(total * (0.3 + rand() * 0.4)) : 0;
         const status = paid >= total ? "paid" : paid > 0 ? "partial" : "unpaid";
         seq++;
         const id = `${LT_ID}bill-${pad(seq)}`;
@@ -609,11 +658,14 @@ export async function seedLoadTestData(
   };
 
   // Last-day records first, topped up from the rest of December when needed.
-  const dayFirst = <T>(rows: T[], onDay: (r: T) => boolean) =>
-    [...rows.filter(onDay), ...rows.filter((r) => !onDay(r))];
-  const billCandidates = dayFirst(lastDayBills, (b) => b.created_at.slice(0, 10) === lastDate).filter(
-    (b) => b.status !== "paid" && b.total - b.amount_paid > 0,
-  );
+  const dayFirst = <T>(rows: T[], onDay: (r: T) => boolean) => [
+    ...rows.filter(onDay),
+    ...rows.filter((r) => !onDay(r)),
+  ];
+  const billCandidates = dayFirst(
+    lastDayBills,
+    (b) => b.created_at.slice(0, 10) === lastDate,
+  ).filter((b) => b.status !== "paid" && b.total - b.amount_paid > 0);
   const bookingCandidates = dayFirst(lastDayBookings, (b) => b.booking_date === lastDate).filter(
     (b) => b.status !== "Cancelled" && b.total_amount - b.advance_paid > 0,
   );
@@ -807,8 +859,7 @@ export async function runLoadTestBenchmark(): Promise<LoadTestBenchmark> {
   buildReportPdf(benchmarkDoc(year, stats, 0, 0, 0));
   const pdfMs = ms() - t2;
 
-  const rows =
-    bills.length + bookings.length + sales.length + expenses.length + tabEntries.length;
+  const rows = bills.length + bookings.length + sales.length + expenses.length + tabEntries.length;
 
   return {
     ranAt: nowIso(),

@@ -389,9 +389,7 @@ describe("chunksFromUpdates()", () => {
 
 describe("QR pairing", () => {
   it("round-trips credentials", () => {
-    const payload = decodePairingPayload(
-      encodePairingPayload(cfg({ extraBotTokens: ["bot-2"] })),
-    );
+    const payload = decodePairingPayload(encodePairingPayload(cfg({ extraBotTokens: ["bot-2"] })));
     expect(payload).toEqual({ botToken: "bot-1", chatId: "-100123", extraBotTokens: ["bot-2"] });
   });
 
@@ -507,15 +505,15 @@ describe("uploadFullBackup()", () => {
       "fetch",
       vi.fn(async () => new Response(JSON.stringify({ ok: false }), { status: 401 })),
     );
-    await expect(
-      uploadFullBackup(cfg(), new Uint8Array(10), { session: "S" }),
-    ).rejects.toThrow(/bot token/i);
+    await expect(uploadFullBackup(cfg(), new Uint8Array(10), { session: "S" })).rejects.toThrow(
+      /bot token/i,
+    );
   });
 
   it("refuses to upload before setup is finished", async () => {
-    await expect(
-      uploadFullBackup(cfg({ botToken: "" }), new Uint8Array(10)),
-    ).rejects.toThrow(/before backing up/i);
+    await expect(uploadFullBackup(cfg({ botToken: "" }), new Uint8Array(10))).rejects.toThrow(
+      /before backing up/i,
+    );
   });
 });
 
@@ -529,9 +527,12 @@ describe("downloadChunk()", () => {
       vi.fn(async (url: string) => {
         urls.push(url);
         if (url.includes("getFile"))
-          return new Response(JSON.stringify({ ok: true, result: { file_path: "documents/a.zip" } }), {
-            status: 200,
-          });
+          return new Response(
+            JSON.stringify({ ok: true, result: { file_path: "documents/a.zip" } }),
+            {
+              status: 200,
+            },
+          );
         return new Response(new Uint8Array([5, 6, 7]));
       }),
     );

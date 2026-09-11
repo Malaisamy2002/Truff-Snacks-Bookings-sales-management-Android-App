@@ -328,8 +328,6 @@ export function ReportsTab() {
     [sales, month],
   );
 
-
-
   // Chart data for "Last 6 months": derived from the same `pnl` rows used by
   // the table above (single source of truth), with a profit-margin %
   // computed alongside so it can ride a secondary axis over the revenue bars.
@@ -1084,7 +1082,9 @@ export function ReportsTab() {
           rows: [
             { cells: ["Bookings", String(occupancy.bookingCount)] },
             { cells: ["Booked hours", occupancy.bookedHours.toFixed(1)] },
-            { cells: ["Avg. slot value", reportPdfMoney(occupancy.avgSlotValue, s.currencySymbol)] },
+            {
+              cells: ["Avg. slot value", reportPdfMoney(occupancy.avgSlotValue, s.currencySymbol)],
+            },
             { cells: ["Avg. slot length", `${occupancy.avgSlotHours.toFixed(1)} hrs`] },
             {
               cells: [
@@ -1128,7 +1128,11 @@ export function ReportsTab() {
           title: "Best snacks by profit",
           columns: ["Item", "Margin", "Profit"],
           rows: itemPerf.topByProfit.map((r) => ({
-            cells: [r.name, `${r.marginPct.toFixed(0)}%`, reportPdfMoney(r.profit, s.currencySymbol)],
+            cells: [
+              r.name,
+              `${r.marginPct.toFixed(0)}%`,
+              reportPdfMoney(r.profit, s.currencySymbol),
+            ],
           })),
         },
         {
@@ -1196,554 +1200,566 @@ export function ReportsTab() {
       <SectionHeading eyebrow="REPORTS" title="Reports" hint={monthLabel(month)} icon={FileText} />
 
       <LayoutSections tabId="reports" className="space-y-6">
-      <LayoutSection id="reports.month-picker">
-      <Card className="frost">
-        <CardContent className="pt-5">
-          <LayoutParts sectionId="reports.month-picker" className="flex flex-wrap items-end gap-3">
-          <LayoutPart id="reports.month-picker.month">
-            <Label className="stat-label text-muted-foreground">Month</Label>
-            <Input
-              className="h-11"
-              type="month"
-              value={month}
-              onChange={(e) => setMonth(e.target.value || monthKey(new Date()))}
-            />
-          </LayoutPart>
-          <LayoutPart id="reports.month-picker.quick-months" className="flex flex-wrap gap-1.5 pb-0.5">
-            {monthChips.map((c) => (
-              <Button
-                key={c.label}
-                type="button"
-                size="sm"
-                variant={month === c.key ? "default" : "outline"}
-                className="frost-soft lift h-8 rounded-full px-3 text-xs"
-                onClick={() => setMonth(c.key)}
+        <LayoutSection id="reports.month-picker">
+          <Card className="frost">
+            <CardContent className="pt-5">
+              <LayoutParts
+                sectionId="reports.month-picker"
+                className="flex flex-wrap items-end gap-3"
               >
-                {c.label}
-              </Button>
-            ))}
-          </LayoutPart>
-          </LayoutParts>
-        </CardContent>
-      </Card>
-      </LayoutSection>
-
-      <LayoutSection id="reports.hero-kpis">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <HeroStat
-          label="Net profit"
-          value={money(kpis.profit)}
-          hint={`${monthLabel(month)} · after all expenses`}
-          tone={kpis.profit < 0 ? "bad" : "good"}
-          footer={<DeltaStat change={pctChange(cur.profit, prev.profit)} />}
-        />
-        <HeroStat
-          label="Total revenue"
-          value={money(cur.revenue)}
-          hint={`Collected ${money(cur.collected)}`}
-          tone="primary"
-          footer={<DeltaStat change={pctChange(cur.revenue, prev.revenue)} />}
-        />
-      </div>
-      </LayoutSection>
-
-      <LayoutSection id="reports.supporting-kpis">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        {supporting.map((c) => (
-          <MiniStat key={c.label} label={c.label} value={money(c.value)} />
-        ))}
-      </div>
-      </LayoutSection>
-
-      <LayoutSection id="reports.insight-kpis">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <MiniStat
-          label="Collection rate"
-          value={`${insights.collectionRate.toFixed(0)}%`}
-          hint="Collected vs revenue billed"
-          icon={Percent}
-        />
-        <MiniStat
-          label="Avg. booking value"
-          value={money(insights.avgBookingValue)}
-          hint={`${inMonth.b.length} turf booking${inMonth.b.length === 1 ? "" : "s"} this month`}
-          icon={TicketPercent}
-        />
-        <Card className="frost">
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between gap-1">
-              <p className="stat-label truncate text-muted-foreground">Top expense category</p>
-              <Wallet className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            </div>
-            {insights.topExpense ? (
-              <>
-                <p className="stat-value mt-1 text-base leading-tight">
-                  {insights.topExpense.name}
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  {money(insights.topExpense.value)} of {money(kpis.spend)}
-                </p>
-                <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-primary"
-                    style={{
-                      width: `${kpis.spend > 0 ? Math.min(100, (insights.topExpense.value / kpis.spend) * 100) : 0}%`,
-                    }}
+                <LayoutPart id="reports.month-picker.month">
+                  <Label className="stat-label text-muted-foreground">Month</Label>
+                  <Input
+                    className="h-11"
+                    type="month"
+                    value={month}
+                    onChange={(e) => setMonth(e.target.value || monthKey(new Date()))}
                   />
-                </div>
-              </>
-            ) : (
-              <p className="stat-value mt-1 text-base leading-tight text-muted-foreground">
-                No expenses yet
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-      </LayoutSection>
-
-      <LayoutSection id="reports.comparison">
-      <LayoutParts sectionId="reports.comparison">
-      <Card className="frost">
-        <LayoutPart id="reports.comparison.toolbar">
-        <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0 pb-2">
-          <CardTitle className="page-title text-base">
-            {monthLabel(month)} vs {monthLabel(prevMonthKey(month))}
-          </CardTitle>
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={exportPdf}>
-              <FileText className="h-4 w-4" /> PDF statement
-            </Button>
-            <Button size="sm" variant="outline" onClick={sharePdf}>
-              <FileText className="h-4 w-4" /> Share
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="outline">
-                  <FileDown className="h-4 w-4" /> Export Excel <ChevronDown className="h-3.5 w-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={exportReport}>This month</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => void exportFullReport()}>
-                  All time (full history)
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </CardHeader>
-        </LayoutPart>
-        <LayoutPart id="reports.comparison.tiles">
-        <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          {compareCards.map((c) => (
-            <div key={c.label} className="frost-soft lift rounded-lg border p-3">
-              <p className="micro-label text-muted-foreground">{c.label}</p>
-              <p className="stat-value mt-0.5 text-lg leading-tight">{money(c.value)}</p>
-              <p className="text-[11px] text-muted-foreground">was {money(c.previous)}</p>
-              <DeltaStat change={c.change} invert={c.invert} />
-            </div>
-          ))}
-        </CardContent>
-        </LayoutPart>
-      </Card>
-      </LayoutParts>
-      </LayoutSection>
-
-      <LayoutSection id="reports.pnl-table">
-      <Card className="frost">
-        <CardHeader className="pb-2">
-          <CardTitle className="page-title text-base">Profit &amp; loss by month</CardTitle>
-        </CardHeader>
-        <CardContent className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-muted-foreground">
-                <th className="py-2">Month</th>
-                <th className="py-2 text-right">Revenue (incl. tax)</th>
-                <th className="py-2 text-right">Expenses</th>
-                <th className="py-2 text-right">Profit</th>
-                <th className="py-2 text-right">Dues</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pnl.map((r) => (
-                <tr key={r.key} className="border-t">
-                  <td className="py-2">{r.month}</td>
-                  <td className="py-2 text-right">{money(r.Revenue)}</td>
-                  <td className="py-2 text-right">{money(r.Expenses)}</td>
-                  <td
-                    className={
-                      r.Profit < 0
-                        ? "py-2 text-right font-semibold text-destructive"
-                        : "py-2 text-right font-semibold"
-                    }
-                  >
-                    {money(r.Profit)}
-                  </td>
-                  <td className="py-2 text-right">{money(r.Dues)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </CardContent>
-      </Card>
-      </LayoutSection>
-
-      <LayoutSection id="reports.profit-mix">
-      <ProfitMixCard
-        turf={cur.turfRevenue}
-        snacks={cur.snacksRevenue}
-        bills={cur.billsRevenue}
-        expenses={cur.expenses}
-        profit={cur.profit}
-        subtitle={monthLabel(month)}
-      />
-      </LayoutSection>
-
-      <LayoutSection id="reports.turf-usage">
-      <TurfUsageDetailCard occupancy={occupancy} />
-      </LayoutSection>
-
-      <LayoutSection id="reports.top-customers">
-      <TopCustomersCard ranking={ranking} />
-      </LayoutSection>
-
-      <LayoutSection id="reports.item-insights">
-      <ItemPerformanceCard performance={itemPerf} />
-      </LayoutSection>
-
-
-      <LayoutSection id="reports.revenue-by-source">
-      <Card className="frost">
-        <CardHeader className="pb-2">
-          <CardTitle className="page-title text-base">Revenue by source · last 6 months</CardTitle>
-        </CardHeader>
-        <CardContent className="h-64 px-2 md:h-80">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={revenueTrend}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-              <XAxis dataKey="month" fontSize={11} />
-              <YAxis yAxisId="money" fontSize={11} width={44} />
-              <YAxis
-                yAxisId="pct"
-                orientation="right"
-                fontSize={11}
-                width={40}
-                tickFormatter={(v: number) => `${v}%`}
-              />
-              <Tooltip
-                formatter={(v: number, name: string) =>
-                  name === "Margin" ? `${v.toFixed(1)}%` : money(v)
-                }
-              />
-              <Legend />
-              <Bar
-                yAxisId="money"
-                dataKey="Bills"
-                name="Bills"
-                stackId="rev"
-                fill="var(--chart-4)"
-                radius={0}
-              />
-              <Bar
-                yAxisId="money"
-                dataKey="Turf"
-                name="Turf"
-                stackId="rev"
-                fill="var(--chart-1)"
-                radius={0}
-              />
-              <Bar
-                yAxisId="money"
-                dataKey="Snacks"
-                name="Snacks"
-                stackId="rev"
-                fill="var(--chart-2)"
-                radius={4}
-              />
-              <Line
-                yAxisId="pct"
-                type="monotone"
-                dataKey="Margin"
-                name="Profit margin"
-                stroke="var(--chart-5)"
-                strokeWidth={2}
-                dot={{ r: 3 }}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-      </LayoutSection>
-
-      <LayoutSection id="reports.expense-trend">
-      <Card className="frost">
-        <CardHeader className="pb-2">
-          <CardTitle className="page-title text-base">Expenses · last 6 months</CardTitle>
-        </CardHeader>
-        <CardContent className="h-56 px-2 md:h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={expenseTrend}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-              <XAxis dataKey="month" fontSize={11} />
-              <YAxis fontSize={11} width={44} />
-              <Tooltip formatter={(v: number) => money(v)} />
-              <Bar dataKey="Expenses" fill="var(--chart-3)" radius={4} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-      </LayoutSection>
-
-      <LayoutSection id="reports.tax">
-      {curTaxRow && (
-        <Card className="frost">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base page-title">
-              <Receipt className="h-4 w-4" />
-              GST / tax — {monthLabel(month)}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div className="frost-well rounded-lg border p-3">
-                <p className="micro-label text-muted-foreground">Taxable value</p>
-                <p className="stat-value text-lg">{money(curTaxRow.taxableValue)}</p>
-              </div>
-              {curTaxRow.lines.map((l) => (
-                <div key={l.label} className="frost-well rounded-lg border p-3">
-                  <p className="micro-label text-muted-foreground">{l.label}</p>
-                  <p className="stat-value text-lg">{money(l.value)}</p>
-                </div>
-              ))}
-              <div className="frost-well rounded-lg border p-3">
-                <p className="micro-label text-muted-foreground">Total tax</p>
-                <p className="stat-value text-lg">{money(curTaxRow.totalTax)}</p>
-              </div>
-            </div>
-            <p className="mt-3 text-xs text-muted-foreground">
-              Applies today's tax settings across every month shown — it isn't a record of what each
-              bill charged at the time. Full 6-month breakdown is in the Excel export and PDF
-              statement.
-            </p>
-          </CardContent>
-        </Card>
-      )}
-      </LayoutSection>
-
-      <LayoutSection id="reports.snack-share">
-      <Card className="frost">
-        <CardHeader className="pb-2">
-          <CardTitle className="page-title text-base">Snack revenue share</CardTitle>
-        </CardHeader>
-        <CardContent className="h-64 px-2 md:h-80">
-          {pieData.length === 0 ? (
-            <p className="p-4 text-sm text-muted-foreground">No snack sales this month.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={pieData} dataKey="value" nameKey="name" outerRadius="75%" label>
-                  {pieData.map((_, i) => (
-                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                </LayoutPart>
+                <LayoutPart
+                  id="reports.month-picker.quick-months"
+                  className="flex flex-wrap gap-1.5 pb-0.5"
+                >
+                  {monthChips.map((c) => (
+                    <Button
+                      key={c.label}
+                      type="button"
+                      size="sm"
+                      variant={month === c.key ? "default" : "outline"}
+                      className="frost-soft lift h-8 rounded-full px-3 text-xs"
+                      onClick={() => setMonth(c.key)}
+                    >
+                      {c.label}
+                    </Button>
                   ))}
-                </Pie>
-                <Tooltip formatter={(v: number) => money(v)} />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-        </CardContent>
-      </Card>
-      </LayoutSection>
+                </LayoutPart>
+              </LayoutParts>
+            </CardContent>
+          </Card>
+        </LayoutSection>
 
-      <LayoutSection id="reports.item-sales">
-      <LayoutParts sectionId="reports.item-sales">
-      <Card className="frost">
-        <LayoutPart id="reports.item-sales.toolbar">
-        <CardHeader className="flex-col items-stretch gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle className="page-title text-base">Item-wise sales</CardTitle>
-          <div className="flex flex-wrap gap-2">
-            <SortMenu
-              options={ITEM_SORT_OPTIONS}
-              field={itemSort.field}
-              dir={itemSort.dir}
-              onFieldChange={itemSort.setField}
-              onToggleDir={itemSort.toggleDir}
+        <LayoutSection id="reports.hero-kpis">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <HeroStat
+              label="Net profit"
+              value={money(kpis.profit)}
+              hint={`${monthLabel(month)} · after all expenses`}
+              tone={kpis.profit < 0 ? "bad" : "good"}
+              footer={<DeltaStat change={pctChange(cur.profit, prev.profit)} />}
             />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="outline">
-                  <FileDown className="h-4 w-4" /> Excel <ChevronDown className="h-3.5 w-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={() =>
-                    exportToExcel(
-                      itemRows.map((r) => ({
-                        Item: r.name,
-                        Qty: r.qty,
-                        Revenue: r.revenue,
-                        Profit: r.profit,
-                      })),
-                      `items-${month}-${sortSuffix(itemSort.field, itemSort.dir)}`,
-                      "Items",
-                      INVOICE_SECTIONS.reports,
-                    )
-                  }
-                >
-                  This month
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    // Same "aggregate across every record" approach as the
-                    // main Export Excel menu's "All time" — matches() always
-                    // true, so itemPerformance sums every sale ever loaded
-                    // instead of just this month's.
-                    const allTime = itemPerformance(sales, () => true);
-                    void exportToExcel(
-                      allTime.rows.map((r) => ({
-                        Item: r.name,
-                        Qty: r.qty,
-                        Revenue: r.revenue,
-                        Profit: r.profit,
-                      })),
-                      `items-full-history`,
-                      "Items",
-                      INVOICE_SECTIONS.reports,
-                    );
-                  }}
-                >
-                  All time (full history)
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <HeroStat
+              label="Total revenue"
+              value={money(cur.revenue)}
+              hint={`Collected ${money(cur.collected)}`}
+              tone="primary"
+              footer={<DeltaStat change={pctChange(cur.revenue, prev.revenue)} />}
+            />
           </div>
-        </CardHeader>
-        </LayoutPart>
-        <LayoutPart id="reports.item-sales.table">
-        <CardContent>
-          {itemRows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No snack sales this month.</p>
-          ) : isMobile ? (
-            <div className="space-y-2">
-              {itemRows.map((r) => (
-                <div key={r.name} className="frost-soft lift rounded-lg border p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-medium">{r.name}</p>
-                    <p className="stat-value text-sm">{money(r.revenue)}</p>
-                  </div>
-                  <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-                    <span>Qty {r.qty}</span>
-                    <span className={r.profit < 0 ? "font-medium text-destructive" : "font-medium"}>
-                      Profit {money(r.profit)}
-                    </span>
-                  </div>
+        </LayoutSection>
+
+        <LayoutSection id="reports.supporting-kpis">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+            {supporting.map((c) => (
+              <MiniStat key={c.label} label={c.label} value={money(c.value)} />
+            ))}
+          </div>
+        </LayoutSection>
+
+        <LayoutSection id="reports.insight-kpis">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <MiniStat
+              label="Collection rate"
+              value={`${insights.collectionRate.toFixed(0)}%`}
+              hint="Collected vs revenue billed"
+              icon={Percent}
+            />
+            <MiniStat
+              label="Avg. booking value"
+              value={money(insights.avgBookingValue)}
+              hint={`${inMonth.b.length} turf booking${inMonth.b.length === 1 ? "" : "s"} this month`}
+              icon={TicketPercent}
+            />
+            <Card className="frost">
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between gap-1">
+                  <p className="stat-label truncate text-muted-foreground">Top expense category</p>
+                  <Wallet className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
+                {insights.topExpense ? (
+                  <>
+                    <p className="stat-value mt-1 text-base leading-tight">
+                      {insights.topExpense.name}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {money(insights.topExpense.value)} of {money(kpis.spend)}
+                    </p>
+                    <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-primary"
+                        style={{
+                          width: `${kpis.spend > 0 ? Math.min(100, (insights.topExpense.value / kpis.spend) * 100) : 0}%`,
+                        }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <p className="stat-value mt-1 text-base leading-tight text-muted-foreground">
+                    No expenses yet
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </LayoutSection>
+
+        <LayoutSection id="reports.comparison">
+          <LayoutParts sectionId="reports.comparison">
+            <Card className="frost">
+              <LayoutPart id="reports.comparison.toolbar">
+                <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0 pb-2">
+                  <CardTitle className="page-title text-base">
+                    {monthLabel(month)} vs {monthLabel(prevMonthKey(month))}
+                  </CardTitle>
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" onClick={exportPdf}>
+                      <FileText className="h-4 w-4" /> PDF statement
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={sharePdf}>
+                      <FileText className="h-4 w-4" /> Share
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="sm" variant="outline">
+                          <FileDown className="h-4 w-4" /> Export Excel{" "}
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={exportReport}>This month</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => void exportFullReport()}>
+                          All time (full history)
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </CardHeader>
+              </LayoutPart>
+              <LayoutPart id="reports.comparison.tiles">
+                <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                  {compareCards.map((c) => (
+                    <div key={c.label} className="frost-soft lift rounded-lg border p-3">
+                      <p className="micro-label text-muted-foreground">{c.label}</p>
+                      <p className="stat-value mt-0.5 text-lg leading-tight">{money(c.value)}</p>
+                      <p className="text-[11px] text-muted-foreground">was {money(c.previous)}</p>
+                      <DeltaStat change={c.change} invert={c.invert} />
+                    </div>
+                  ))}
+                </CardContent>
+              </LayoutPart>
+            </Card>
+          </LayoutParts>
+        </LayoutSection>
+
+        <LayoutSection id="reports.pnl-table">
+          <Card className="frost">
+            <CardHeader className="pb-2">
+              <CardTitle className="page-title text-base">Profit &amp; loss by month</CardTitle>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-muted-foreground">
-                    <th className="py-2">Item</th>
-                    <th className="py-2 text-right">Qty</th>
-                    <th className="py-2 text-right">Revenue</th>
+                    <th className="py-2">Month</th>
+                    <th className="py-2 text-right">Revenue (incl. tax)</th>
+                    <th className="py-2 text-right">Expenses</th>
                     <th className="py-2 text-right">Profit</th>
+                    <th className="py-2 text-right">Dues</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {itemRows.map((r) => (
-                    <tr key={r.name} className="border-t">
-                      <td className="py-2">{r.name}</td>
-                      <td className="py-2 text-right">{r.qty}</td>
-                      <td className="py-2 text-right">{money(r.revenue)}</td>
-                      <td className="py-2 text-right">{money(r.profit)}</td>
+                  {pnl.map((r) => (
+                    <tr key={r.key} className="border-t">
+                      <td className="py-2">{r.month}</td>
+                      <td className="py-2 text-right">{money(r.Revenue)}</td>
+                      <td className="py-2 text-right">{money(r.Expenses)}</td>
+                      <td
+                        className={
+                          r.Profit < 0
+                            ? "py-2 text-right font-semibold text-destructive"
+                            : "py-2 text-right font-semibold"
+                        }
+                      >
+                        {money(r.Profit)}
+                      </td>
+                      <td className="py-2 text-right">{money(r.Dues)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
-          )}
-        </CardContent>
-        </LayoutPart>
-      </Card>
-      </LayoutParts>
-      </LayoutSection>
+            </CardContent>
+          </Card>
+        </LayoutSection>
 
-      <LayoutSection id="reports.turf-dues">
-      <LayoutParts sectionId="reports.turf-dues">
-      <Accordion type="multiple" value={duesSectionOpen} onValueChange={setDuesSectionOpen}>
-      <SettingsSection
-        value="turf-dues"
-        eyebrow="OUTSTANDING"
-        title="Turf dues"
-        icon={Wallet2}
-        action={
-        <LayoutPart id="reports.turf-dues.toolbar">
-          {dues.length > 0 ? (
-            <SortMenu
-              options={TURF_DUES_SORT_OPTIONS}
-              field={turfDuesSort.field}
-              dir={turfDuesSort.dir}
-              onFieldChange={turfDuesSort.setField}
-              onToggleDir={turfDuesSort.toggleDir}
-            />
-          ) : null}
-        </LayoutPart>
-        }
-      >
-        <LayoutPart id="reports.turf-dues.list">
-        <div className="space-y-2">
-          {dues.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No pending dues.</p>
-          ) : (
-            sortedDues.map((b) => (
-              <div
-                key={b.id}
-                className="frost-soft lift flex items-center justify-between gap-3 rounded-lg border p-3 text-sm"
-              >
-                <div>
-                  <p className="font-semibold">
-                    {b.booking_no} · {b.customer_name}
-                  </p>
-                  <p className="text-muted-foreground">
-                    Total {money(b.gross)}
-                    {b.discount > 0 && <> · Offer -{money(b.discount)}</>} · Paid{" "}
-                    {money(b.cashPaid)}
-                  </p>
-                  <p className="font-medium text-destructive">
-                    Due {money(b.due)} ·{" "}
-                    {AGE_BUCKET_META[ageBucket(b.booking_date)]}
-                  </p>
+        <LayoutSection id="reports.profit-mix">
+          <ProfitMixCard
+            turf={cur.turfRevenue}
+            snacks={cur.snacksRevenue}
+            bills={cur.billsRevenue}
+            expenses={cur.expenses}
+            profit={cur.profit}
+            subtitle={monthLabel(month)}
+          />
+        </LayoutSection>
+
+        <LayoutSection id="reports.turf-usage">
+          <TurfUsageDetailCard occupancy={occupancy} />
+        </LayoutSection>
+
+        <LayoutSection id="reports.top-customers">
+          <TopCustomersCard ranking={ranking} />
+        </LayoutSection>
+
+        <LayoutSection id="reports.item-insights">
+          <ItemPerformanceCard performance={itemPerf} />
+        </LayoutSection>
+
+        <LayoutSection id="reports.revenue-by-source">
+          <Card className="frost">
+            <CardHeader className="pb-2">
+              <CardTitle className="page-title text-base">
+                Revenue by source · last 6 months
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="h-64 px-2 md:h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={revenueTrend}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                  <XAxis dataKey="month" fontSize={11} />
+                  <YAxis yAxisId="money" fontSize={11} width={44} />
+                  <YAxis
+                    yAxisId="pct"
+                    orientation="right"
+                    fontSize={11}
+                    width={40}
+                    tickFormatter={(v: number) => `${v}%`}
+                  />
+                  <Tooltip
+                    formatter={(v: number, name: string) =>
+                      name === "Margin" ? `${v.toFixed(1)}%` : money(v)
+                    }
+                  />
+                  <Legend />
+                  <Bar
+                    yAxisId="money"
+                    dataKey="Bills"
+                    name="Bills"
+                    stackId="rev"
+                    fill="var(--chart-4)"
+                    radius={0}
+                  />
+                  <Bar
+                    yAxisId="money"
+                    dataKey="Turf"
+                    name="Turf"
+                    stackId="rev"
+                    fill="var(--chart-1)"
+                    radius={0}
+                  />
+                  <Bar
+                    yAxisId="money"
+                    dataKey="Snacks"
+                    name="Snacks"
+                    stackId="rev"
+                    fill="var(--chart-2)"
+                    radius={4}
+                  />
+                  <Line
+                    yAxisId="pct"
+                    type="monotone"
+                    dataKey="Margin"
+                    name="Profit margin"
+                    stroke="var(--chart-5)"
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </LayoutSection>
+
+        <LayoutSection id="reports.expense-trend">
+          <Card className="frost">
+            <CardHeader className="pb-2">
+              <CardTitle className="page-title text-base">Expenses · last 6 months</CardTitle>
+            </CardHeader>
+            <CardContent className="h-56 px-2 md:h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={expenseTrend}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                  <XAxis dataKey="month" fontSize={11} />
+                  <YAxis fontSize={11} width={44} />
+                  <Tooltip formatter={(v: number) => money(v)} />
+                  <Bar dataKey="Expenses" fill="var(--chart-3)" radius={4} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </LayoutSection>
+
+        <LayoutSection id="reports.tax">
+          {curTaxRow && (
+            <Card className="frost">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base page-title">
+                  <Receipt className="h-4 w-4" />
+                  GST / tax — {monthLabel(month)}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div className="frost-well rounded-lg border p-3">
+                    <p className="micro-label text-muted-foreground">Taxable value</p>
+                    <p className="stat-value text-lg">{money(curTaxRow.taxableValue)}</p>
+                  </div>
+                  {curTaxRow.lines.map((l) => (
+                    <div key={l.label} className="frost-well rounded-lg border p-3">
+                      <p className="micro-label text-muted-foreground">{l.label}</p>
+                      <p className="stat-value text-lg">{money(l.value)}</p>
+                    </div>
+                  ))}
+                  <div className="frost-well rounded-lg border p-3">
+                    <p className="micro-label text-muted-foreground">Total tax</p>
+                    <p className="stat-value text-lg">{money(curTaxRow.totalTax)}</p>
+                  </div>
                 </div>
-                <Button
-                  size="sm"
-                  disabled={updateBooking.isPending}
-                  onClick={() =>
-                    updateBooking.mutate(
-                      {
-                        id: b.id,
-                        // Clear the FULL tax-inclusive due (not the pre-tax
-                        // total, which left a tax-sized balance behind).
-                        advance_paid: b.paid + b.due,
-                        status: "Completed",
-                      },
-                      { onSuccess: () => toast.success("Marked as paid") },
-                    )
-                  }
-                >
-                  <CheckCircle2 className="h-4 w-4" /> Mark paid
-                </Button>
-              </div>
-            ))
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Applies today's tax settings across every month shown — it isn't a record of what
+                  each bill charged at the time. Full 6-month breakdown is in the Excel export and
+                  PDF statement.
+                </p>
+              </CardContent>
+            </Card>
           )}
-        </div>
-        </LayoutPart>
-      </SettingsSection>
-      </Accordion>
-      </LayoutParts>
-      </LayoutSection>
+        </LayoutSection>
+
+        <LayoutSection id="reports.snack-share">
+          <Card className="frost">
+            <CardHeader className="pb-2">
+              <CardTitle className="page-title text-base">Snack revenue share</CardTitle>
+            </CardHeader>
+            <CardContent className="h-64 px-2 md:h-80">
+              {pieData.length === 0 ? (
+                <p className="p-4 text-sm text-muted-foreground">No snack sales this month.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={pieData} dataKey="value" nameKey="name" outerRadius="75%" label>
+                      {pieData.map((_, i) => (
+                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(v: number) => money(v)} />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+        </LayoutSection>
+
+        <LayoutSection id="reports.item-sales">
+          <LayoutParts sectionId="reports.item-sales">
+            <Card className="frost">
+              <LayoutPart id="reports.item-sales.toolbar">
+                <CardHeader className="flex-col items-stretch gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
+                  <CardTitle className="page-title text-base">Item-wise sales</CardTitle>
+                  <div className="flex flex-wrap gap-2">
+                    <SortMenu
+                      options={ITEM_SORT_OPTIONS}
+                      field={itemSort.field}
+                      dir={itemSort.dir}
+                      onFieldChange={itemSort.setField}
+                      onToggleDir={itemSort.toggleDir}
+                    />
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="sm" variant="outline">
+                          <FileDown className="h-4 w-4" /> Excel{" "}
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() =>
+                            exportToExcel(
+                              itemRows.map((r) => ({
+                                Item: r.name,
+                                Qty: r.qty,
+                                Revenue: r.revenue,
+                                Profit: r.profit,
+                              })),
+                              `items-${month}-${sortSuffix(itemSort.field, itemSort.dir)}`,
+                              "Items",
+                              INVOICE_SECTIONS.reports,
+                            )
+                          }
+                        >
+                          This month
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            // Same "aggregate across every record" approach as the
+                            // main Export Excel menu's "All time" — matches() always
+                            // true, so itemPerformance sums every sale ever loaded
+                            // instead of just this month's.
+                            const allTime = itemPerformance(sales, () => true);
+                            void exportToExcel(
+                              allTime.rows.map((r) => ({
+                                Item: r.name,
+                                Qty: r.qty,
+                                Revenue: r.revenue,
+                                Profit: r.profit,
+                              })),
+                              `items-full-history`,
+                              "Items",
+                              INVOICE_SECTIONS.reports,
+                            );
+                          }}
+                        >
+                          All time (full history)
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </CardHeader>
+              </LayoutPart>
+              <LayoutPart id="reports.item-sales.table">
+                <CardContent>
+                  {itemRows.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No snack sales this month.</p>
+                  ) : isMobile ? (
+                    <div className="space-y-2">
+                      {itemRows.map((r) => (
+                        <div key={r.name} className="frost-soft lift rounded-lg border p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-medium">{r.name}</p>
+                            <p className="stat-value text-sm">{money(r.revenue)}</p>
+                          </div>
+                          <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+                            <span>Qty {r.qty}</span>
+                            <span
+                              className={
+                                r.profit < 0 ? "font-medium text-destructive" : "font-medium"
+                              }
+                            >
+                              Profit {money(r.profit)}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-muted-foreground">
+                            <th className="py-2">Item</th>
+                            <th className="py-2 text-right">Qty</th>
+                            <th className="py-2 text-right">Revenue</th>
+                            <th className="py-2 text-right">Profit</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {itemRows.map((r) => (
+                            <tr key={r.name} className="border-t">
+                              <td className="py-2">{r.name}</td>
+                              <td className="py-2 text-right">{r.qty}</td>
+                              <td className="py-2 text-right">{money(r.revenue)}</td>
+                              <td className="py-2 text-right">{money(r.profit)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </LayoutPart>
+            </Card>
+          </LayoutParts>
+        </LayoutSection>
+
+        <LayoutSection id="reports.turf-dues">
+          <LayoutParts sectionId="reports.turf-dues">
+            <Accordion type="multiple" value={duesSectionOpen} onValueChange={setDuesSectionOpen}>
+              <SettingsSection
+                value="turf-dues"
+                eyebrow="OUTSTANDING"
+                title="Turf dues"
+                icon={Wallet2}
+                action={
+                  <LayoutPart id="reports.turf-dues.toolbar">
+                    {dues.length > 0 ? (
+                      <SortMenu
+                        options={TURF_DUES_SORT_OPTIONS}
+                        field={turfDuesSort.field}
+                        dir={turfDuesSort.dir}
+                        onFieldChange={turfDuesSort.setField}
+                        onToggleDir={turfDuesSort.toggleDir}
+                      />
+                    ) : null}
+                  </LayoutPart>
+                }
+              >
+                <LayoutPart id="reports.turf-dues.list">
+                  <div className="space-y-2">
+                    {dues.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No pending dues.</p>
+                    ) : (
+                      sortedDues.map((b) => (
+                        <div
+                          key={b.id}
+                          className="frost-soft lift flex items-center justify-between gap-3 rounded-lg border p-3 text-sm"
+                        >
+                          <div>
+                            <p className="font-semibold">
+                              {b.booking_no} · {b.customer_name}
+                            </p>
+                            <p className="text-muted-foreground">
+                              Total {money(b.gross)}
+                              {b.discount > 0 && <> · Offer -{money(b.discount)}</>} · Paid{" "}
+                              {money(b.cashPaid)}
+                            </p>
+                            <p className="font-medium text-destructive">
+                              Due {money(b.due)} · {AGE_BUCKET_META[ageBucket(b.booking_date)]}
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            disabled={updateBooking.isPending}
+                            onClick={() =>
+                              updateBooking.mutate(
+                                {
+                                  id: b.id,
+                                  // Clear the FULL tax-inclusive due (not the pre-tax
+                                  // total, which left a tax-sized balance behind).
+                                  advance_paid: b.paid + b.due,
+                                  status: "Completed",
+                                },
+                                { onSuccess: () => toast.success("Marked as paid") },
+                              )
+                            }
+                          >
+                            <CheckCircle2 className="h-4 w-4" /> Mark paid
+                          </Button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </LayoutPart>
+              </SettingsSection>
+            </Accordion>
+          </LayoutParts>
+        </LayoutSection>
       </LayoutSections>
     </div>
   );

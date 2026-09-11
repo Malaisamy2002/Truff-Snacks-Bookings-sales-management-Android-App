@@ -208,8 +208,8 @@ export function ArchiveCard() {
               <div className="micro-label text-foreground">Archived</div>
               {log.map((r) => (
                 <div key={r.year}>
-                  {r.year} · {r.rows.toLocaleString("en-IN")} records ·{" "}
-                  {formatDMY(r.archived_at)} · {r.file_name}
+                  {r.year} · {r.rows.toLocaleString("en-IN")} records · {formatDMY(r.archived_at)} ·{" "}
+                  {r.file_name}
                   {r.telegram_session ? " · sent to Telegram" : ""}
                 </div>
               ))}
