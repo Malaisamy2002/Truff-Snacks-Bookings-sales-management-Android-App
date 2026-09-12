@@ -145,7 +145,7 @@ export type PrintSettings = {
    * A4/A5/color-roll layouts. Blank = QR/payment box is not drawn. */
   upiId: string;
   /** Which UPI app chips to show under the QR (editable — the shop picks
-   * whichever apps their customers actually use). Defaults to GPay +
+   * whichever apps their customers actually use). Defaults to Google Pay +
    * PhonePe; empty/corrupted settings fall back to the same default. */
   upiApps: UpiAppId[];
   /** Color scheme for the premium 80mm layout only — real thermal rolls are

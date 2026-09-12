@@ -227,7 +227,10 @@ function Index() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background pb-24 md:pb-8" data-density={layout.density}>
+    <div
+      className="min-h-[100dvh] min-w-0 overflow-x-hidden bg-background pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-8"
+      data-density={layout.density}
+    >
       <ArchiveYearDialog />
       <DesktopFirstRunNotice />
       <ScrollEdgeButton />
@@ -288,7 +291,7 @@ function Index() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-2xl p-4 md:max-w-6xl md:px-8 md:py-8">
+      <main className="mx-auto min-w-0 max-w-2xl px-3 py-4 sm:p-4 md:max-w-6xl md:px-8 md:py-8">
         <Suspense
           fallback={
             <div className="grid min-h-48 place-items-center text-sm text-muted-foreground">
@@ -310,7 +313,7 @@ function Index() {
         </Suspense>
       </main>
 
-      <nav className="frost fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t pb-[env(safe-area-inset-bottom)] md:hidden">
+      <nav className="frost fixed inset-x-0 bottom-0 z-20 grid min-h-16 grid-cols-5 border-t pb-[env(safe-area-inset-bottom)] md:hidden">
         {primaryMobileTabs.map((t) => {
           const Icon = t.icon;
           const active = activeTab === t.id;
@@ -320,17 +323,17 @@ function Index() {
               onPointerDown={() => prefetchTab(t.id)}
               onClick={() => setTab(t.id)}
               className={cn(
-                "relative flex min-w-0 flex-col items-center gap-1 whitespace-nowrap py-2.5 text-[11px] font-medium transition-colors",
+                "relative flex min-h-16 min-w-0 flex-col items-center justify-center gap-0.5 whitespace-nowrap py-1.5 text-[10px] font-medium transition-colors",
                 active ? "text-primary" : "text-muted-foreground",
               )}
             >
               <span
                 className={cn(
-                  "grid size-8 place-items-center rounded-full transition-all",
+                  "grid size-7 place-items-center rounded-full transition-all",
                   active ? "bg-primary/12 shadow-[0_6px_16px_-10px_var(--primary)]" : "",
                 )}
               >
-                <Icon className="h-5 w-5" />
+                <Icon className="h-[18px] w-[18px]" />
               </span>
               {t.label}
             </button>
@@ -342,14 +345,14 @@ function Index() {
             onClick={() => setMoreOpen(true)}
             aria-label="Open more sections"
             className={cn(
-              "relative flex min-w-0 flex-col items-center gap-1 whitespace-nowrap py-2.5 text-[11px] font-medium transition-colors",
+              "relative flex min-h-16 min-w-0 flex-col items-center justify-center gap-0.5 whitespace-nowrap py-1.5 text-[10px] font-medium transition-colors",
               moreMobileTabs.some((tab) => tab.id === activeTab)
                 ? "text-primary"
                 : "text-muted-foreground",
             )}
           >
-            <span className="grid size-8 place-items-center rounded-full bg-primary/12 shadow-[0_6px_16px_-10px_var(--primary)]">
-              <MoreHorizontal className="h-5 w-5" />
+            <span className="grid size-7 place-items-center rounded-full bg-primary/12 shadow-[0_6px_16px_-10px_var(--primary)]">
+              <MoreHorizontal className="h-[18px] w-[18px]" />
             </span>
             More
           </button>

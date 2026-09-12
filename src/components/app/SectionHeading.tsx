@@ -35,8 +35,8 @@ export function SectionHeading({
         ) : null}
         <div className="min-w-0">
           {eyebrow ? <p className="micro-label truncate">{eyebrow}</p> : null}
-          <h2 className="page-title truncate">{title}</h2>
-          {hint ? <p className="truncate text-xs text-muted-foreground">{hint}</p> : null}
+          <h2 className="page-title line-clamp-2">{title}</h2>
+          {hint ? <p className="line-clamp-2 text-xs text-muted-foreground">{hint}</p> : null}
         </div>
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}

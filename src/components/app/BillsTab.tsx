@@ -568,18 +568,20 @@ export function BillsTab() {
                                 <span> · balance owed on the customer's tab</span>
                               )}
                             </p>
-                            {bill.payment_mode && bill.status === "paid" && (
-                              <p className="text-sm text-muted-foreground">
-                                Paid via {bill.payment_mode}
-                              </p>
-                            )}
+                            {bill.payment_mode &&
+                              bill.status === "paid" &&
+                              !mergedBillIds.has(bill.id) && (
+                                <p className="text-sm text-muted-foreground">
+                                  Paid via {bill.payment_mode}
+                                </p>
+                              )}
                             {moved ? (
                               <p className="frost-soft rounded-xl border px-3 py-2 text-xs text-muted-foreground">
                                 This bill's balance is on the customer's tab — collect it from the
                                 Dues tab.
                               </p>
                             ) : (
-                              <QuickPayRow bill={bill} />
+                              <QuickPayRow bill={bill} allowUpi={!mergedBillIds.has(bill.id)} />
                             )}
                             <BillActions
                               bill={bill}

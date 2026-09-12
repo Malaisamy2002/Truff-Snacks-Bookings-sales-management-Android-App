@@ -12,6 +12,7 @@ import {
   nowIso,
   sortBy,
   type ExpenseRow,
+  type SnackItemRow,
   type SnackSaleRow,
   type TurfBookingRow,
 } from "./localdb";
@@ -165,6 +166,79 @@ export type SnackStockHistoryEntry = {
   new_quantity: number;
   created_at: string;
 };
+
+type SnackStockChange = {
+  item_id: string;
+  item_name: string;
+  previous_quantity: number;
+  new_quantity: number;
+  stock_updated_at: string;
+};
+
+type SnackSaleMutationResult = SnackSale & {
+  stockChanges: SnackStockChange[];
+};
+
+/**
+ * Apply one sale/delete delta while the caller owns the stock transaction.
+ * Keeping the in-memory row current matters when a combo contains the same
+ * stock item more than once at different prices.
+ */
+async function applySnackStockDelta(
+  line: SnackSaleItem,
+  delta: number,
+  timestamp: string,
+  stockRows: SnackItemRow[],
+  changes: SnackStockChange[],
+) {
+  const row = stockRows.find((s) => s.item_name === line.item_name);
+  if (!row) return;
+
+  const previous = Number(row.stock_quantity ?? 0);
+  const next = Math.max(0, previous + delta);
+  if (next === previous) return;
+
+  await db.snack_items.update(row.id, {
+    stock_quantity: next,
+    stock_updated_at: timestamp,
+  });
+  row.stock_quantity = next;
+  row.stock_updated_at = timestamp;
+  changes.push({
+    item_id: row.id,
+    item_name: row.item_name,
+    previous_quantity: previous,
+    new_quantity: next,
+    stock_updated_at: timestamp,
+  });
+  await db.snack_stock_history.add({
+    id: newId(),
+    item_id: row.id,
+    item_name: row.item_name,
+    delta: next - previous,
+    previous_quantity: previous,
+    new_quantity: next,
+    created_at: timestamp,
+  });
+}
+
+function updateSnackItemsCache(qc: ReturnType<typeof useQueryClient>, changes: SnackStockChange[]) {
+  if (changes.length === 0) return;
+  const latestByItem = new Map(changes.map((change) => [change.item_id, change]));
+  qc.setQueryData<SnackItem[]>(["snack_items"], (items) => {
+    if (!items) return items;
+    return items.map((item) => {
+      const change = latestByItem.get(item.id);
+      return change
+        ? {
+            ...item,
+            stock_quantity: change.new_quantity,
+            stock_updated_at: change.stock_updated_at,
+          }
+        : item;
+    });
+  });
+}
 
 export type TurfBooking = {
   id: string;
@@ -565,47 +639,64 @@ export function useSnackSales() {
 export function useCreateSnackSale() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: Omit<SnackSale, "id" | "bill_no">): Promise<SnackSale> => {
+    mutationFn: async (
+      payload: Omit<SnackSale, "id" | "bill_no">,
+    ): Promise<SnackSaleMutationResult> => {
       const bill_no = await nextSnackBillNo();
       const id = newId();
       // Same tax freeze as bookings/bills (lib/biz.ts TaxSnapshot).
       const tax = freezeTax(payload.total);
-      await db.snack_sales.add({
-        id,
-        bill_no,
-        sale_date: payload.sale_date,
-        customer_name: payload.customer_name,
-        items: payload.items,
-        total: payload.total,
+      const createdAt = nowIso();
+      const stockChanges: SnackStockChange[] = [];
+      await db.transaction(
+        "rw",
+        db.snack_sales,
+        db.snack_items,
+        db.snack_stock_history,
+        async () => {
+          await db.snack_sales.add({
+            id,
+            bill_no,
+            sale_date: payload.sale_date,
+            customer_name: payload.customer_name,
+            items: payload.items,
+            total: payload.total,
+            tax_amount: tax.taxAmount,
+            tax_lines: tax.taxLines,
+            profit: payload.profit,
+            payment_mode: payload.payment_mode,
+            notes: payload.notes,
+            booking_id: payload.booking_id ?? null,
+            booking_no: payload.booking_no ?? null,
+            created_at: createdAt,
+          });
+
+          // The sale, stock row, timestamp, and audit entries commit or roll
+          // back together. A stock write failure must never leave a bill whose
+          // inventory side-effect was only partially applied.
+          const stockRows = await db.snack_items.toArray();
+          for (const line of payload.items) {
+            await applySnackStockDelta(line, -line.qty, createdAt, stockRows, stockChanges);
+          }
+        },
+      );
+
+      return {
+        ...payload,
         tax_amount: tax.taxAmount,
         tax_lines: tax.taxLines,
-        profit: payload.profit,
-        payment_mode: payload.payment_mode,
-        notes: payload.notes,
-        booking_id: payload.booking_id ?? null,
-        booking_no: payload.booking_no ?? null,
-        created_at: nowIso(),
-      });
-
-      // Reduce stock counts for the items sold (best-effort; never blocks the bill).
-      try {
-        const stockRows = await db.snack_items.toArray();
-        for (const line of payload.items) {
-          const row = stockRows.find((s) => s.item_name === line.item_name);
-          if (!row) continue;
-          const next = Math.max(0, Number(row.stock_quantity ?? 0) - line.qty);
-          await db.snack_items.update(row.id, { stock_quantity: next });
-        }
-      } catch {
-        // ignore stock sync failures
-      }
-
-      return { ...payload, tax_amount: tax.taxAmount, tax_lines: tax.taxLines, id, bill_no };
+        id,
+        bill_no,
+        stockChanges,
+      };
     },
 
-    onSuccess: () => {
+    onSuccess: (saved) => {
+      // Paint the new count immediately, then refetch to reconcile with disk.
+      updateSnackItemsCache(qc, saved.stockChanges);
       qc.invalidateQueries({ queryKey: ["snack_sales"] });
       qc.invalidateQueries({ queryKey: ["snack_items"] });
+      qc.invalidateQueries({ queryKey: ["snack_stock_history"] });
     },
   });
 }
@@ -623,30 +714,34 @@ export function useUpdateSnackSale() {
 export function useDeleteSnackSale() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const sale = await db.snack_sales.get(id);
-      await db.snack_sales.delete(id);
+    mutationFn: async (id: string): Promise<SnackStockChange[]> => {
+      const stockChanges: SnackStockChange[] = [];
+      await db.transaction(
+        "rw",
+        db.snack_sales,
+        db.snack_items,
+        db.snack_stock_history,
+        async () => {
+          const sale = await db.snack_sales.get(id);
+          if (!sale) return;
+          await db.snack_sales.delete(id);
 
-      // Restore stock for the items sold (best-effort, mirrors the decrement
-      // in useCreateSnackSale; never blocks the delete).
-      if (sale) {
-        try {
-          const items = (sale.items ?? []) as unknown as SnackSaleItem[];
+          const timestamp = nowIso();
           const stockRows = await db.snack_items.toArray();
+          const items = (sale.items ?? []) as unknown as SnackSaleItem[];
           for (const line of items) {
-            const row = stockRows.find((s) => s.item_name === line.item_name);
-            if (!row) continue;
-            const next = Math.max(0, Number(row.stock_quantity ?? 0) + line.qty);
-            await db.snack_items.update(row.id, { stock_quantity: next });
+            await applySnackStockDelta(line, line.qty, timestamp, stockRows, stockChanges);
           }
-        } catch {
-          // ignore stock sync failures
-        }
-      }
+        },
+      );
+      return stockChanges;
     },
-    onSuccess: () => {
+
+    onSuccess: (stockChanges) => {
+      updateSnackItemsCache(qc, stockChanges);
       qc.invalidateQueries({ queryKey: ["snack_sales"] });
       qc.invalidateQueries({ queryKey: ["snack_items"] });
+      qc.invalidateQueries({ queryKey: ["snack_stock_history"] });
     },
   });
 }

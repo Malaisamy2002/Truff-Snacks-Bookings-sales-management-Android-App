@@ -284,8 +284,8 @@ export function TimeSlotPicker({
               )}
             >
               <Icon className="h-4 w-4" />
-              <span className="hidden truncate xs:inline sm:inline">{p.label}</span>
-              <span className="truncate xs:hidden sm:hidden">{p.label.split(" ")[0]}</span>
+              <span className="hidden truncate min-[390px]:inline sm:inline">{p.label}</span>
+              <span className="truncate min-[390px]:hidden sm:hidden">{p.label.split(" ")[0]}</span>
             </button>
           );
         })}

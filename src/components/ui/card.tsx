@@ -6,7 +6,8 @@ const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElemen
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn("frost rounded-2xl border text-card-foreground", className)}
+      className={cn("frost min-w-0 rounded-2xl border text-card-foreground", className)}
+      data-slot="card"
       {...props}
     />
   ),
@@ -15,7 +16,12 @@ Card.displayName = "Card";
 
 const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn("flex flex-col space-y-1.5 p-6", className)} {...props} />
+    <div
+      ref={ref}
+      className={cn("flex flex-col space-y-1.5 p-4 md:p-6", className)}
+      data-slot="card-header"
+      {...props}
+    />
   ),
 );
 CardHeader.displayName = "CardHeader";
@@ -44,14 +50,24 @@ const CardContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
     // never sits flush against the card's top border. When CardContent
     // follows a CardHeader, the header already carries that spacing, so
     // the sibling selector below drops CardContent's own top padding.
-    <div ref={ref} className={cn("p-6 [&:not(:first-child)]:pt-0", className)} {...props} />
+    <div
+      ref={ref}
+      className={cn("min-w-0 p-4 md:p-6 [&:not(:first-child)]:pt-0", className)}
+      data-slot="card-content"
+      {...props}
+    />
   ),
 );
 CardContent.displayName = "CardContent";
 
 const CardFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn("flex items-center p-6 pt-0", className)} {...props} />
+    <div
+      ref={ref}
+      className={cn("flex items-center p-4 pt-0 md:p-6 md:pt-0", className)}
+      data-slot="card-footer"
+      {...props}
+    />
   ),
 );
 CardFooter.displayName = "CardFooter";

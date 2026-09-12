@@ -234,8 +234,8 @@ function StockRow({
   onDecrement: () => void;
 }) {
   return (
-    <div className="lift frost-soft flex flex-wrap items-center gap-2 rounded-xl border p-3">
-      <div className="min-w-0 flex-1">
+    <div className="lift frost-soft flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
         <p className="truncate text-sm font-medium">{i.item_name}</p>
         <p
           className={cn(
@@ -255,7 +255,7 @@ function StockRow({
           )}
         </p>
       </div>
-      <div className="flex items-center gap-1">
+      <div className="flex w-full min-w-0 items-center gap-1 sm:w-auto sm:shrink-0">
         <Button
           size="icon"
           variant="outline"
@@ -277,7 +277,7 @@ function StockRow({
           <Plus className="h-4 w-4" />
         </Button>
         <Input
-          className="h-9 w-20"
+          className="h-9 min-w-0 flex-1 sm:w-20 sm:flex-none"
           type="number"
           min={0}
           placeholder="Add"

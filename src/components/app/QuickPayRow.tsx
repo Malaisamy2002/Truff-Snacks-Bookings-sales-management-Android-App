@@ -10,7 +10,15 @@ import { rupees } from "@/lib/money";
 import { useTabEntries } from "@/lib/tabs";
 
 /** One-tap payment shortcuts and partial payment entry for a single bill. */
-export function QuickPayRow({ bill }: { bill: Bill }) {
+export function QuickPayRow({
+  bill,
+  allowUpi = true,
+}: {
+  bill: Bill;
+  /** Merged bills are settled as one collection and do not expose a UPI
+   * quick-pay shortcut in the merge workflow. */
+  allowUpi?: boolean;
+}) {
   const updateBill = useUpdateBill();
   const [part, setPart] = useState("");
   const [busy, setBusy] = useState(false);
@@ -64,18 +72,20 @@ export function QuickPayRow({ bill }: { bill: Bill }) {
   return (
     <div className="space-y-2">
       {due > 0 && (
-        <div className="grid grid-cols-2 gap-2">
+        <div className={allowUpi ? "grid grid-cols-2 gap-2" : "grid gap-2"}>
           <Button className="lift h-11" disabled={busy} onClick={() => payFull("Cash")}>
             <Banknote className="size-4" /> Paid · Cash
           </Button>
-          <Button
-            className="lift h-11"
-            variant="secondary"
-            disabled={busy}
-            onClick={() => payFull("UPI")}
-          >
-            <Smartphone className="size-4" /> Paid · UPI
-          </Button>
+          {allowUpi && (
+            <Button
+              className="lift h-11"
+              variant="secondary"
+              disabled={busy}
+              onClick={() => payFull("UPI")}
+            >
+              <Smartphone className="size-4" /> Paid · UPI
+            </Button>
+          )}
         </div>
       )}
       {due > 0 && (

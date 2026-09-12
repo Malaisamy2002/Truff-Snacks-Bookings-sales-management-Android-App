@@ -53,7 +53,7 @@ const pmoney = (n: number, symbol: string) => {
  * size since it's vector, not a rasterized PNG. */
 function qrGrid(text: string): boolean[][] | null {
   try {
-    const qr = QRCode.create(text, { errorCorrectionLevel: "M" });
+    const qr = QRCode.create(text, { errorCorrectionLevel: "Q" });
     const size = qr.modules.size;
     const grid: boolean[][] = [];
     for (let r = 0; r < size; r++) {
@@ -78,19 +78,26 @@ function drawQr(
   const grid = qrGrid(text);
   if (!grid) return;
   const n = grid.length;
-  const mod = sizeMm / n;
+  // Preserve the four-module quiet zone required by UPI scanners. Keeping it
+  // inside the white tile means the surrounding payment card can stay clean.
+  const quiet = 4;
+  const mod = sizeMm / (n + quiet * 2);
+  const originX = x + mod * quiet;
+  const originY = y + mod * quiet;
   pdf.setFillColor(255, 255, 255);
   pdf.rect(x, y, sizeMm, sizeMm, "F");
   pdf.setFillColor(...dark);
   for (let r = 0; r < n; r++) {
     for (let c = 0; c < n; c++) {
-      if (grid[r]?.[c]) pdf.rect(x + c * mod, y + r * mod, mod + 0.02, mod + 0.02, "F");
+      if (grid[r]?.[c]) {
+        pdf.rect(originX + c * mod, originY + r * mod, mod + 0.02, mod + 0.02, "F");
+      }
     }
   }
 }
 
 /** UPI deep-link payload for the "Scan & Pay" QR — the standard `upi://pay`
- * URI every UPI app (GPay/PhonePe/Paytm/BHIM) recognises. Amount/note are
+ * URI every UPI app (Google Pay/PhonePe/Paytm/BHIM UPI) recognises. Amount/note are
  * only included when known so a blank/partial bill still yields a scannable
  * (if less prefilled) code. */
 function upiUri(upiId: string, payeeName: string, amount: number | null, note: string) {
@@ -422,10 +429,12 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
     // Payment / QR box — only when a UPI ID is configured.
     if (s.upiId.trim()) {
       const grandVal = grand ? Number(grand.value.replace(/[^0-9.-]/g, "")) : null;
-      const qrSize = wide ? 24 : 18;
+      // Give the QR enough physical size to scan from a phone, especially on
+      // the 80 mm roll where the old 18 mm code was unnecessarily tiny.
+      const qrSize = wide ? 28 : 25;
       const boxH = qrSize + (wide ? 6 : 4);
       const payW = wide ? contentW - qrSize - 8 : contentW;
-      // Chip row (GPay/PhonePe/etc, from s.upiApps) drawn under the QR on
+      // App row (Google Pay/PhonePe/etc, from s.upiApps) drawn under the QR on
       // every layout — same app list the shop picks in Settings, resolved
       // the same way the "Pay via UPI" button resolves it.
       const chipFont = (wide ? 6.2 : 5) * scale;
@@ -438,7 +447,7 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(8 * scale);
         pdf.setTextColor(...navy);
-        pdf.text("PAYMENT", marginX + 3, y + 6);
+        pdf.text("SCAN & PAY", marginX + 3, y + 6);
         pdf.setFont("helvetica", "normal");
         pdf.setFontSize(bodyFont * scale);
         pdf.setTextColor(40, 40, 40);
@@ -480,13 +489,13 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
         drawAppStrip(pdf, chipApps, centerX, y + qrSize + 11, chipFont, mono);
       }
       // Wide (A4/A5) draws a fixed-height boxed row, then the chip strip
-      // hangs chipFont*0.5 (its own row height) below the box. The narrow
+      // hangs chipFont*0.72 (its own row height) below the box. The narrow
       // (80mm) layout stacks QR → UPI-ID caption → chip strip, so its
       // content runs to qrSize + 11 (the chip row's baseline) plus its own
       // row height. Either way, advance past the chip row plus a gap —
       // not past boxH/qrSize+8 alone (both now undershoot, since the chip
       // row wasn't part of either original measurement).
-      const chipRowH = chipFont * 0.5;
+      const chipRowH = chipFont * 0.72;
       y += wide ? boxH + 2.5 + chipRowH + 4 : qrSize + 11 + chipRowH + 4;
     }
 

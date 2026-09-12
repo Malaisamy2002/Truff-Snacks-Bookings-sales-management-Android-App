@@ -7,9 +7,8 @@ import type { ReceiptDoc } from "./receipt";
 /**
  * jsPDF assigns methods as own instance properties, not on the prototype —
  * see the identical mock in receipt-layout.test.ts / report-pdf.test.ts.
- * Here it's used to confirm the UPI app-chip row this patch adds is
- * actually drawn (via roundedRect fills for the chip backgrounds and text
- * calls for the app names), not just that the PDF builds without throwing.
+ * Here it's used to confirm the UPI app labels are actually drawn, not just
+ * that the PDF builds without throwing.
  */
 type RectCall = { x: number; y: number; w: number; h: number; style: string };
 let rectCapture: RectCall[] | null = null;
@@ -89,10 +88,10 @@ describe("buildPremiumReceiptPdf — UPI Scan & Pay box", () => {
     textCapture = null;
   });
 
-  it("draws the default GPay + PhonePe chip row under the QR on A4", () => {
+  it("draws the default Google Pay + PhonePe app row under the QR on A4", () => {
     textCapture = [];
     buildPremiumReceiptPdf(SAMPLE_DOC, settingsFor("a4", { upiId: "shop@upi" }));
-    expect(textCapture).toContain("GPay");
+    expect(textCapture).toContain("Google Pay");
     expect(textCapture).toContain("PhonePe");
     textCapture = null;
   });
@@ -105,22 +104,22 @@ describe("buildPremiumReceiptPdf — UPI Scan & Pay box", () => {
     );
     expect(textCapture).toContain("Paytm");
     expect(textCapture).toContain("BHIM");
-    expect(textCapture).not.toContain("GPay");
+    expect(textCapture).not.toContain("Google Pay");
     textCapture = null;
   });
 
-  it("falls back to the GPay + PhonePe default when upiApps is empty/corrupted", () => {
+  it("falls back to the Google Pay + PhonePe default when upiApps is empty/corrupted", () => {
     textCapture = [];
     buildPremiumReceiptPdf(
       SAMPLE_DOC,
       settingsFor("a5", { upiId: "shop@upi", upiApps: [] as unknown as PrintSettings["upiApps"] }),
     );
-    expect(textCapture).toContain("GPay");
+    expect(textCapture).toContain("Google Pay");
     expect(textCapture).toContain("PhonePe");
     textCapture = null;
   });
 
-  it("fills the chip row (not outlined) on the always-colour A4/A5 layout", () => {
+  it("keeps app labels out of nested boxes on the always-colour A4/A5 layout", () => {
     rectCapture = [];
     // A4/A5 are always full colour regardless of thermalColorMode — see
     // renderBoxed()'s wantColor = wide || thermalColorMode === "color".
@@ -128,24 +127,21 @@ describe("buildPremiumReceiptPdf — UPI Scan & Pay box", () => {
       SAMPLE_DOC,
       settingsFor("a4", { upiId: "shop@upi", thermalColorMode: "bw" }),
     );
-    // Chip rects are short (h = chipFont * 0.5, a few mm) — the payment
-    // box and QR-tile rects drawn alongside them are much taller, so this
-    // isolates the chip row specifically rather than any roundedRect call.
+    // The app row uses a dot + official name now; it should not introduce
+    // another row of pill-shaped boxes below the QR.
     const chipRects = rectCapture.filter((r) => r.h < 10);
-    expect(chipRects.length).toBeGreaterThan(0);
-    expect(chipRects.every((r) => r.style === "F")).toBe(true);
+    expect(chipRects).toHaveLength(0);
     rectCapture = null;
   });
 
-  it("outlines the chip row (not filled) on a monochrome 80mm thermal", () => {
+  it("keeps app labels out of nested boxes on a monochrome 80mm thermal", () => {
     rectCapture = [];
     buildPremiumReceiptPdf(
       SAMPLE_DOC,
       settingsFor("80mm", { upiId: "shop@upi", thermalColorMode: "bw" }),
     );
     const chipRects = rectCapture.filter((r) => r.h < 10);
-    expect(chipRects.length).toBeGreaterThan(0);
-    expect(chipRects.every((r) => r.style === "D")).toBe(true);
+    expect(chipRects).toHaveLength(0);
     rectCapture = null;
   });
 });

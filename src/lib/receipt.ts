@@ -275,8 +275,16 @@ export function buildReceiptPdf(doc: ReceiptDoc, s: PrintSettings = readPrintSet
       contentW * (wide ? 0.24 : 0.35),
       Math.max(7 * scale, widest(itemQtys)),
     );
+    // Reserve exactly what the amount text needs. This used to be capped at
+    // a fixed proportion of contentW (0.34/0.6), but on narrow rolls
+    // (50/58mm) with a larger font scale or a longer currency prefix, the
+    // real amount text could be wider than that proportion — fitToWidth()
+    // then silently chopped digits off the end ("Rs 1,25…") instead of
+    // reserving the space. Only fall back to a smaller width when there
+    // truly isn't room even for the compact (amount-on-its-own-line)
+    // layout below, so normal prices are never clipped.
     const amountColW = Math.min(
-      contentW * (wide ? 0.34 : 0.6),
+      Math.max(contentW - noColW - 6, 12 * scale),
       Math.max(12 * scale, widest(itemAmounts)),
     );
     const numericW = qtyColW + amountColW + tableGap;

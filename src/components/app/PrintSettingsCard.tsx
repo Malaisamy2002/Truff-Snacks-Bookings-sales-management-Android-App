@@ -339,7 +339,7 @@ export function PrintSettingsCard() {
               </SettingsField>
               <SettingsField
                 label="UPI apps shown"
-                hint="Which app chips print under the QR code. Defaults to GPay + PhonePe."
+                hint="Which app names print under the QR code. Defaults to Google Pay + PhonePe."
                 full
               >
                 <div className="flex flex-wrap gap-4">
@@ -353,7 +353,7 @@ export function PrintSettingsCard() {
                             : settings.upiApps.filter((id) => id !== app.id);
                           // Keep at least one app checked — an empty list
                           // would otherwise silently fall back to the
-                          // GPay+PhonePe default, leaving the checkboxes
+                          // Google Pay + PhonePe default, leaving the checkboxes
                           // out of sync with what actually prints.
                           if (next.length) set("upiApps", next);
                         }}
