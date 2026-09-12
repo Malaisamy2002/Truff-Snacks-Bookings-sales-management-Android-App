@@ -1,3 +1,13 @@
+// This file is the one exception to the app's plain-Node test environment
+// (see theme.test.ts / image.test.ts for why the rest of the suite stays on
+// Node): setPlatform() below needs a real `window`/`navigator` to flip
+// __TAURI_INTERNALS__ and userAgent, and several tests read/write
+// window.localStorage directly. A per-file pragma scopes jsdom to just this
+// suite instead of switching the global vitest environment, so the
+// Node-only guards elsewhere (e.g. image.test.ts's "FileReader is
+// unavailable outside a real browser" case) keep working unchanged.
+// @vitest-environment jsdom
+
 // Real (in-memory) IndexedDB so buildFullBackup()/restoreFullBackup() run
 // against actual Dexie tables, the same way they do in the app.
 import "fake-indexeddb/auto";
@@ -21,6 +31,8 @@ import {
   latestCompleteGroup,
   parseChunkName,
   parseFullBackupManifest,
+  readLastUpload,
+  readTelegramConfig,
   restoreFullBackup,
   restoreSummary,
   retryAfterMs,
@@ -28,6 +40,7 @@ import {
   telegramErrorMessage,
   uploadFullBackup,
   downloadChunk,
+  writeTelegramConfig,
   type TelegramConfig,
 } from "./telegram-backup";
 import { db, newId, nowIso } from "./localdb";
@@ -39,6 +52,81 @@ const cfg = (over: Partial<TelegramConfig> = {}): TelegramConfig => ({
   deviceLabel: "Windows",
   ...over,
 });
+
+/*
+ * `readSecret`/`writeSecret` (telegram-backup.ts) and `secureInvoke`
+ * (android-secure-store.ts) both reach the platform's real secret store
+ * through a lazy `await import("@tauri-apps/api/core")` — never a static
+ * import — so this single mock covers both the desktop keyring
+ * (`keyring_get_token`/`keyring_set_token`/`keyring_delete_token`) and the
+ * Android secure-store plugin (`plugin:android-save|secure_get/set/delete`)
+ * code paths. `vi.hoisted` is required here (not a plain top-level const)
+ * because `vi.mock`'s factory runs before this file's own top-level code —
+ * referencing an un-hoisted variable from inside it would hit the TDZ.
+ */
+const { invokeMock, fakeSecretStore, realInvoke } = vi.hoisted(() => {
+  const fakeSecretStore = new Map<string, string>();
+  const realInvoke = async (command: string, args?: Record<string, unknown>) => {
+    if (command === "keyring_get_token") {
+      const { account } = args as { account: string };
+      return fakeSecretStore.get(`keyring:${account}`) ?? null;
+    }
+    if (command === "keyring_set_token") {
+      const { account, token } = args as { account: string; token: string };
+      fakeSecretStore.set(`keyring:${account}`, token);
+      return undefined;
+    }
+    if (command === "keyring_delete_token") {
+      const { account } = args as { account: string };
+      fakeSecretStore.delete(`keyring:${account}`);
+      return undefined;
+    }
+    if (command === "plugin:android-save|secure_get") {
+      const { key } = (args as { payload: { key: string } }).payload;
+      return { value: fakeSecretStore.get(`secure:${key}`) ?? null };
+    }
+    if (command === "plugin:android-save|secure_set") {
+      const { key, value } = (args as { payload: { key: string; value: string } }).payload;
+      fakeSecretStore.set(`secure:${key}`, value);
+      return undefined;
+    }
+    if (command === "plugin:android-save|secure_delete") {
+      const { key } = (args as { payload: { key: string } }).payload;
+      fakeSecretStore.delete(`secure:${key}`);
+      return undefined;
+    }
+    throw new Error(`fake invoke: unexpected command "${command}"`);
+  };
+  const invokeMock = vi.fn(realInvoke);
+  return { invokeMock, fakeSecretStore, realInvoke };
+});
+
+vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
+
+type Platform = "web" | "desktop" | "android";
+
+/**
+ * `desktop.ts`'s `isDesktop()`/`isAndroid()` read `window.__TAURI_INTERNALS__`
+ * and `navigator.userAgent` directly (see desktop.ts) — this reproduces
+ * exactly those signals rather than mocking `./desktop` itself, so the real
+ * platform-detection logic stays exercised by these tests, not stubbed out.
+ */
+function setPlatform(mode: Platform) {
+  const w = window as unknown as Record<string, unknown>;
+  if (mode === "web") {
+    delete w["__TAURI_INTERNALS__"];
+    delete w["__TAURI__"];
+  } else {
+    w["__TAURI_INTERNALS__"] = {};
+  }
+  Object.defineProperty(window.navigator, "userAgent", {
+    value:
+      mode === "android"
+        ? "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36"
+        : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    configurable: true,
+  });
+}
 
 async function seedExpenseWithReceipt(bytes: Uint8Array, spentAt = "2026-09-04") {
   const id = newId();
@@ -119,6 +207,7 @@ describe("buildFullBackup()", () => {
 
 describe("restoreFullBackup()", () => {
   beforeEach(async () => {
+    await db.customers.clear();
     await db.expenses.clear();
     await db.receipts.clear();
     await db.receipt_hashes.clear();
@@ -229,6 +318,28 @@ describe("restoreFullBackup()", () => {
     await expect(
       restoreFullBackup(await zip.generateAsync({ type: "uint8array" })),
     ).rejects.toThrow(/manifest/i);
+  });
+
+  it("rejects an archive whose manifest carries a corrupted receipt_hashes row, before touching any table", async () => {
+    await db.customers.add({ id: "keep-me", name: "Existing", phone: null, created_at: nowIso() });
+    const { path } = await seedExpenseWithReceipt(new Uint8Array([1, 2, 3]));
+    const built = await buildFullBackup("Windows");
+
+    // Hand-corrupt the manifest's receipt_hashes block — missing `sha256` —
+    // while leaving everything else (including the row data restoreBackup()
+    // would otherwise happily apply) intact.
+    const zip = await JSZip.loadAsync(built.bytes);
+    const manifest = parseFullBackupManifest(await zip.files[MANIFEST_NAME]!.async("string"));
+    manifest.tables["receipt_hashes"] = [{ path }]; // no sha256
+    zip.file(MANIFEST_NAME, JSON.stringify(manifest));
+    const corrupted = await zip.generateAsync({ type: "uint8array" });
+
+    await expect(restoreFullBackup(corrupted, "replace")).rejects.toThrow(
+      /receipt-hash records look corrupted/i,
+    );
+    // Nothing should have been restored OR cleared — this device's existing
+    // data must survive a manifest that fails validation.
+    expect(await db.customers.get("keep-me")).toBeDefined();
   });
 });
 
@@ -442,9 +553,113 @@ describe("telegramErrorMessage()", () => {
  * Network: upload, 429 retry, download
  * ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ *
+ * Config storage: keyring / secure store / localStorage round-trip
+ * ------------------------------------------------------------------ */
+
+describe("readTelegramConfig() / writeTelegramConfig() — storage round-trip", () => {
+  beforeEach(() => {
+    fakeSecretStore.clear();
+    invokeMock.mockReset();
+    invokeMock.mockImplementation(realInvoke);
+    window.localStorage.clear();
+  });
+  afterEach(() => {
+    setPlatform("web"); // leave a clean, non-Tauri state for any later test
+  });
+
+  it("round-trips the bot token and extra bots through the OS keyring on desktop", async () => {
+    setPlatform("desktop");
+    await writeTelegramConfig(
+      cfg({ botToken: "primary-token", extraBotTokens: ["extra-1", "extra-2"] }),
+    );
+
+    const read = await readTelegramConfig();
+    expect(read.botToken).toBe("primary-token");
+    expect(read.extraBotTokens).toEqual(["extra-1", "extra-2"]);
+
+    // Actually went through the keyring, not the localStorage fallback —
+    // the account names must match the fixed allowlist in src-tauri/src/lib.rs.
+    expect(fakeSecretStore.get("keyring:telegram-backup-token")).toBe("primary-token");
+    expect(fakeSecretStore.get("keyring:telegram-backup-extra-tokens")).toBe(
+      JSON.stringify(["extra-1", "extra-2"]),
+    );
+    expect(window.localStorage.getItem("ks:telegram-backup-token")).toBeNull();
+  });
+
+  it("round-trips through the Android Keystore-backed secure store on Android", async () => {
+    setPlatform("android");
+    await writeTelegramConfig(cfg({ botToken: "android-token", extraBotTokens: ["extra-a"] }));
+
+    const read = await readTelegramConfig();
+    expect(read.botToken).toBe("android-token");
+    expect(read.extraBotTokens).toEqual(["extra-a"]);
+
+    // Went through the Keystore-backed secure store, not the OS keyring
+    // command (that command doesn't exist on Android) and not localStorage.
+    expect(fakeSecretStore.get("secure:telegram-backup-token")).toBe("android-token");
+    expect(fakeSecretStore.has("keyring:telegram-backup-token")).toBe(false);
+    expect(window.localStorage.getItem("ks:telegram-backup-token")).toBeNull();
+  });
+
+  it("round-trips through localStorage in the browser/PWA build (no Tauri shell)", async () => {
+    setPlatform("web");
+    await writeTelegramConfig(cfg({ botToken: "web-token", extraBotTokens: ["extra-w"] }));
+
+    const read = await readTelegramConfig();
+    expect(read.botToken).toBe("web-token");
+    expect(read.extraBotTokens).toEqual(["extra-w"]);
+
+    expect(window.localStorage.getItem("ks:telegram-backup-token")).toBe("web-token");
+    expect(fakeSecretStore.size).toBe(0);
+  });
+
+  it("clearing the bot token deletes it from the keyring instead of leaving a stale value", async () => {
+    setPlatform("desktop");
+    await writeTelegramConfig(cfg({ botToken: "will-be-cleared" }));
+    expect(fakeSecretStore.get("keyring:telegram-backup-token")).toBe("will-be-cleared");
+
+    await writeTelegramConfig(cfg({ botToken: "" }));
+    expect(fakeSecretStore.has("keyring:telegram-backup-token")).toBe(false);
+    expect((await readTelegramConfig()).botToken).toBe("");
+  });
+
+  it("falls back to localStorage when the Android secure store rejects the write", async () => {
+    setPlatform("android");
+    // Reject specifically the secure_set call, whichever of the two
+    // concurrent writeTelegramConfig() secret writes (token vs. extra
+    // tokens) happens to reach invoke() first — Promise.all runs them
+    // concurrently, so asserting on call order here would be fragile.
+    invokeMock.mockImplementation(async (command: string, args?: Record<string, unknown>) => {
+      if (command === "plugin:android-save|secure_set")
+        throw new Error("Keystore unavailable");
+      return realInvoke(command, args);
+    });
+
+    await writeTelegramConfig(cfg({ botToken: "fallback-token" }));
+
+    // The failed secure_set never landed in the fake secure store...
+    expect(fakeSecretStore.has("secure:telegram-backup-token")).toBe(false);
+    // ...but the config still round-trips, via the localStorage fallback.
+    expect(window.localStorage.getItem("ks:telegram-backup-token")).toBe("fallback-token");
+    expect((await readTelegramConfig()).botToken).toBe("fallback-token");
+  });
+
+  it("preserves non-secret fields (chat ID, device label) across a round-trip", async () => {
+    setPlatform("desktop");
+    await writeTelegramConfig(
+      cfg({ botToken: "t", chatId: "-100999", deviceLabel: "Kitchen tablet" }),
+    );
+    const read = await readTelegramConfig();
+    expect(read.chatId).toBe("-100999");
+    expect(read.deviceLabel).toBe("Kitchen tablet");
+  });
+});
+
 describe("uploadFullBackup()", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    window.localStorage.removeItem("ks:telegram-backup-last");
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -514,6 +729,37 @@ describe("uploadFullBackup()", () => {
     await expect(uploadFullBackup(cfg({ botToken: "" }), new Uint8Array(10))).rejects.toThrow(
       /before backing up/i,
     );
+  });
+
+  it("stops the whole upload — without retrying — when a LATER chunk's round-robin bot is revoked", async () => {
+    // Two bots in the pool, three parts: part 1 -> bot-1 (primary), part 2 ->
+    // bot-2 (extra, revoked), part 3 -> bot-1 again. Only the first two
+    // requests should ever happen — a revoked bot must not be silently
+    // retried, and the round-robin must not fall through to a bot further
+    // down the pool once one comes back rejected.
+    const requestedTokens: string[] = [];
+    const fetchMock = vi.fn(async (url: string) => {
+      const token = /\/bot([^/]+)\/sendDocument/.exec(url)?.[1] ?? "";
+      requestedTokens.push(token);
+      if (token === "bot-2") return new Response(JSON.stringify({ ok: false }), { status: 401 });
+      return ok(requestedTokens.length);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const bytes = new Uint8Array(CHUNK_BYTES * 2 + 10); // forces exactly 3 parts
+    const twoBotCfg = cfg({ botToken: "bot-1", extraBotTokens: ["bot-2"] });
+
+    await expect(
+      uploadFullBackup(twoBotCfg, bytes, { session: "S" }),
+    ).rejects.toThrow(/bot token/i);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(requestedTokens).toEqual(["bot-1", "bot-2"]);
+    // A partially-sent, ultimately-failed upload must not be recorded as a
+    // completed backup — otherwise the "last backup" pointer used elsewhere
+    // (e.g. fetchLatestFullBackupArchive's poll) would point at a session
+    // Telegram never fully received.
+    expect(readLastUpload()).toBeNull();
   });
 });
 

@@ -26,9 +26,11 @@
  * Telegram — only the derived key is used, and only in memory.
  */
 
+import { readBackupPassphrase } from "./backup-passphrase";
+
 const MAGIC = [0x54, 0x53, 0x4c, 0x45]; // "TSLE"
 const VERSION = 1;
-const PBKDF2_ITERATIONS = 210_000; // OWASP's 2023 minimum for PBKDF2-HMAC-SHA256
+const PBKDF2_ITERATIONS = 600_000; // OWASP Password Storage Cheat Sheet's PBKDF2-HMAC-SHA256 recommendation
 const SALT_BYTES = 16;
 const IV_BYTES = 12;
 const HEADER_BYTES = MAGIC.length + 1 + 4; // magic + version + iteration count
@@ -143,4 +145,43 @@ export async function decryptBackup(
   } catch {
     throw new WrongPassphraseError();
   }
+}
+
+/**
+ * Encrypts `bytes` — a built backup's serialized bytes, whatever the
+ * underlying shape (zip archive, or plain JSON text as `downloadBackup`'s
+ * single-file `.db` export produces) — with this device's stored backup
+ * passphrase (see `backup-passphrase.ts`). Every path that sends a backup
+ * somewhere it doesn't fully control (Telegram) or writes it to a shared
+ * location (a local `.db`/`.zip`/year-archive save, which can end up
+ * copied/shared like any other file) calls this before handing bytes off,
+ * so nothing that leaves the device is ever plaintext. Throws a plain,
+ * actionable error if no passphrase has been set yet, rather than silently
+ * falling back to plaintext.
+ */
+export async function encryptFullBackupBytes(bytes: Uint8Array): Promise<Uint8Array> {
+  const passphrase = await readBackupPassphrase();
+  if (!passphrase)
+    throw new Error(
+      "Set a backup encryption passphrase (Settings → Backup encryption) before backing up.",
+    );
+  return encryptBackup(bytes, passphrase);
+}
+
+/**
+ * Inverse of `encryptFullBackupBytes`, for a restore path reading `bytes`
+ * fresh off disk or a picked file. Archives/`.db` files made after
+ * encryption was added come back through here as `TSLE` containers; older
+ * ones made before it are plain bytes and are passed through unchanged —
+ * detecting and handling both is what keeps a backup someone already has
+ * saved/sent from becoming unrestorable.
+ */
+export async function decryptFullBackupBytes(bytes: Uint8Array): Promise<Uint8Array> {
+  if (!isEncryptedBackup(bytes)) return bytes;
+  const passphrase = await readBackupPassphrase();
+  if (!passphrase)
+    throw new Error(
+      "This backup is encrypted. Enter the same backup passphrase used to create it (Settings → Backup encryption) and try again.",
+    );
+  return decryptBackup(bytes, passphrase);
 }

@@ -10,6 +10,16 @@ All notable changes to this consolidation are recorded here, newest first.
   wired into any UI component, so this is a source-tree cleanup only.
 
 ### Fixed
+- **Year-archiving saved cleartext data to a shared folder:** `archiveYear()`
+  now encrypts the `.db` file it writes locally with the same backup
+  passphrase as a full backup (`encryptFullBackupBytes` in
+  `telegram-backup.ts`), before it lands in the public Downloads/Documents
+  location — a whole year of bookings/sales no longer sits there in plain
+  JSON. **This does not retroactively re-encrypt anything:** if you already
+  have a `Turf bookings and sales - <year>.db` file in Downloads from
+  before this fix, that specific file is still plaintext — move it
+  somewhere secure or delete it once you've confirmed the archived data
+  reached Telegram safely. Archives made after this fix are fine as-is.
 - **Security regression from the GitHub-backup work, now reverted along with
   it:** `keyring_get_token`/`keyring_set_token`/`keyring_delete_token`
   (desktop) and `secureSet`/`secureGet`/`secureDelete` (Android) had started

@@ -8,13 +8,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { readBackupPassphrase, writeBackupPassphrase } from "@/lib/backup-passphrase";
 
 /**
- * The passphrase used to encrypt the Telegram full backup archive before it
- * leaves this device (see `backup-crypto.ts` — audit item 1.4).
- * `TelegramBackupCard` renders this component so there's exactly one place
- * to set it, and reads it back through `backup-passphrase.ts` at
- * backup/restore time.
+ * The passphrase used to encrypt every backup archive before it leaves this
+ * device (see `backup-crypto.ts`) — the single-file `.db` export
+ * (`BackupCard`) as well as the Telegram/local full backup
+ * (`TelegramBackupCard`). Both cards render this component, since either one
+ * can be the first backup a person tries: `readBackupPassphrase`/
+ * `writeBackupPassphrase` (backup-passphrase.ts) are the single source of
+ * truth either way, so there's nothing to keep in sync between the two
+ * copies. `onSaved` lets a card that only shows this conditionally (see
+ * `BackupCard`) know to stop showing it once a passphrase exists.
  */
-export function BackupEncryptionSettings() {
+export function BackupEncryptionSettings({ onSaved }: { onSaved?: () => void } = {}) {
   const [saved, setSaved] = useState(""); // what's actually stored, for the "set" check below
   const [value, setValue] = useState("");
   const [loaded, setLoaded] = useState(false);
@@ -38,6 +42,7 @@ export function BackupEncryptionSettings() {
       await writeBackupPassphrase(value);
       setSaved(value);
       toast.success(value ? "Backup passphrase saved on this device" : "Backup passphrase cleared");
+      if (value) onSaved?.();
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -54,9 +59,10 @@ export function BackupEncryptionSettings() {
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          Every backup sent to Telegram is encrypted with this passphrase before it leaves the
-          device, so the ledger and receipt photos aren't readable by anyone who only has access to
-          that chat. Use the same passphrase on every device that backs up or restores this ledger.
+          Every backup sent to Telegram (or saved locally) is encrypted with this passphrase before
+          it leaves the device, so the ledger and receipt photos aren't readable by anyone who only
+          has access to that chat or file. Use the same passphrase on every device that backs up or
+          restores this ledger.
         </p>
         <div className="flex gap-2">
           <div className="relative flex-1">

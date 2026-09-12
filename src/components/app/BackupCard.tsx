@@ -1,9 +1,9 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Download, Upload } from "lucide-react";
+import { Download, ShieldAlert, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,6 +19,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   backupSummary,
   buildBackup,
+  decodeBackupBytes,
   downloadBackup,
   parseBackup,
   pickBackupFile,
@@ -26,6 +27,8 @@ import {
   type BackupFile,
 } from "@/lib/backup";
 import { isAndroid, isDesktop } from "@/lib/desktop";
+import { hasBackupPassphrase } from "@/lib/backup-passphrase";
+import { BackupEncryptionSettings } from "./BackupEncryptionSettings";
 import {
   useAppSettings,
   writeAppSettings,
@@ -40,6 +43,17 @@ export function BackupCard() {
   const [merge, setMerge] = useState(false);
   const [pendingRestore, setPendingRestore] = useState<BackupFile | null>(null);
   const { settings: appSettings, save: saveAppSettings } = useAppSettings();
+  // `null` = still checking; `false` is what shows the inline encryption
+  // setup below. Exports are encrypted unconditionally (downloadBackup ->
+  // encryptFullBackupBytes), so a person who only ever uses this card — and
+  // never opens the Telegram backup card, the other place this passphrase
+  // can be set — needs a way to set one from right here too, not just a
+  // toast error the first time they click Export.
+  const [passphraseSet, setPassphraseSet] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    void hasBackupPassphrase().then(setPassphraseSet);
+  }, []);
 
   const run = async (label: string, fn: () => Promise<void>) => {
     setBusy(label);
@@ -52,7 +66,8 @@ export function BackupCard() {
     }
   };
 
-  const applyBackup = async (text: string) => {
+  const applyBackup = async (bytes: Uint8Array) => {
+    const text = await decodeBackupBytes(bytes);
     const backup = parseBackup(text);
     if (!merge) {
       // Replace mode wipes existing data — confirm before doing it.
@@ -61,9 +76,7 @@ export function BackupCard() {
     }
     const count = await restoreBackup(backup, "merge");
     await qc.invalidateQueries();
-    toast.success(`Restored ${count} records`, {
-      description: backupSummary(backup),
-    });
+    toast.success(`Restored ${count} records`, { description: backupSummary(backup) });
   };
 
   const confirmRestore = async () => {
@@ -74,9 +87,7 @@ export function BackupCard() {
     try {
       const count = await restoreBackup(backup, "replace");
       await qc.invalidateQueries();
-      toast.success(`Restored ${count} records`, {
-        description: backupSummary(backup),
-      });
+      toast.success(`Restored ${count} records`, { description: backupSummary(backup) });
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -92,10 +103,18 @@ export function BackupCard() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Exports every customer, bill, expense, booking and snack sale into one
+            Exports every customer, bill, expense, booking and snack sale into one encrypted
             <code className="mx-1 rounded bg-muted px-1">.db</code> file you can keep or move to
             another device.
           </p>
+          {passphraseSet === false && (
+            <div className="frost-well space-y-2 rounded-xl p-3">
+              <p className="flex items-center gap-1.5 text-xs font-medium text-destructive">
+                <ShieldAlert className="h-3.5 w-3.5" /> Set a backup passphrase before exporting
+              </p>
+              <BackupEncryptionSettings onSaved={() => setPassphraseSet(true)} />
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             <Button
               disabled={busy !== null}
@@ -126,9 +145,9 @@ export function BackupCard() {
                 // same as the browser/PWA build.
                 if (isDesktop() && !isAndroid()) {
                   void run("import", async () => {
-                    const text = await pickBackupFile();
-                    if (text === null) return; // user cancelled the open dialog
-                    await applyBackup(text);
+                    const bytes = await pickBackupFile();
+                    if (bytes === null) return; // user cancelled the open dialog
+                    await applyBackup(bytes);
                   });
                   return;
                 }
@@ -140,13 +159,15 @@ export function BackupCard() {
             <input
               ref={fileRef}
               type="file"
-              accept=".db,.json,application/json"
+              accept=".db,.json"
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 e.target.value = "";
                 if (!file) return;
-                void run("import", async () => applyBackup(await file.text()));
+                void run("import", async () =>
+                  applyBackup(new Uint8Array(await file.arrayBuffer())),
+                );
               }}
             />
           </div>

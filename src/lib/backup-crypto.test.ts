@@ -71,4 +71,18 @@ describe("backup-crypto", () => {
       /isn't an encrypted backup/,
     );
   });
+
+  it("encrypts at or above OWASP's current PBKDF2-HMAC-SHA256 recommendation (600,000 iterations)", async () => {
+    const container = await encryptBackup(bytesOf("data"), "pw");
+    // Header layout (see backup-crypto.ts's doc comment): 4-byte magic +
+    // 1-byte version + 4-byte big-endian iteration count. Read straight off
+    // the produced bytes, the same way decryptBackup does, rather than
+    // importing the private PBKDF2_ITERATIONS constant — this pins the
+    // actual on-disk behavior, and fails loudly if a future edit lowers it
+    // (OWASP's guidance has only ever moved up: 310k in 2021, 600k from
+    // 2023 onward — see the Password Storage Cheat Sheet).
+    const view = new DataView(container.buffer, container.byteOffset, container.byteLength);
+    const iterations = view.getUint32(5, false);
+    expect(iterations).toBeGreaterThanOrEqual(600_000);
+  });
 });

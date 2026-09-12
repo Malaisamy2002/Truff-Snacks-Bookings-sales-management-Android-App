@@ -492,7 +492,10 @@ function drawSlim(
   // splitTextToSize wraps onto a second centered line instead of running
   // the full "GPay | PhonePe | Paytm | BHIM" list past the slip's edge
   // when all four apps are picked on a narrow 50/58mm format.
-  const appLines = pdf.splitTextToSize(apps.map((a) => a.name).join(" | "), o.width - 4) as string[];
+  const appLines = pdf.splitTextToSize(
+    apps.map((a) => a.name).join(" | "),
+    o.width - 4,
+  ) as string[];
   appLines.forEach((appLine) => {
     pdf.text(appLine, centerX, y, { align: "center" });
     y += smallFont * 0.62;

@@ -47,9 +47,9 @@ import {
   saveFullBackupLocally,
   uploadFullBackup,
   writeTelegramConfig,
-  encryptFullBackupBytes,
   type TelegramConfig,
 } from "@/lib/telegram-backup";
+import { encryptFullBackupBytes } from "@/lib/backup-crypto";
 import {
   SettingsActions,
   SettingsField,

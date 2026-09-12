@@ -855,8 +855,12 @@ export async function printReceipt(
   // only).
   if (isDesktop()) {
     try {
-      printed = await printPdfBytesAsImages(new Uint8Array(pdf.output("arraybuffer") as ArrayBuffer), copies);
-    } catch {
+      printed = await printPdfBytesAsImages(
+        new Uint8Array(pdf.output("arraybuffer") as ArrayBuffer),
+        copies,
+      );
+    } catch (err) {
+      console.error("Raster print failed, falling back to legacy print path:", err);
       printed = false;
     }
     if (printed) {

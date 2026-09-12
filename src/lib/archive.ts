@@ -1,12 +1,8 @@
 import type { BackupFile } from "./backup";
 import { isAndroid, isDesktop, saveExportFile } from "./desktop";
 import { db, resyncCounters } from "./localdb";
-import {
-  encryptFullBackupBytes,
-  isTelegramConfigured,
-  readTelegramConfig,
-  uploadYearArchive,
-} from "./telegram-backup";
+import { encryptFullBackupBytes } from "./backup-crypto";
+import { isTelegramConfigured, readTelegramConfig, uploadYearArchive } from "./telegram-backup";
 import {
   deleteYear,
   distinctYears,
@@ -114,28 +110,35 @@ export async function buildYearArchive(year: number): Promise<YearArchive> {
 export const archiveFileName = (year: number) => `Turf bookings and sales - ${year}.db`;
 
 /**
- * Saves the archive snapshot. Browser/PWA: Blob download, same as before.
- * Desktop: native Save dialog + `tauri-plugin-fs`, matching backup.ts's
+ * Saves the archive's ENCRYPTED bytes (see `encryptFullBackupBytes` in
+ * `archiveYear` below) — never the plaintext snapshot. This file lands in
+ * the same public Documents/Downloads location the Telegram copy is meant
+ * to have a backup for, so it needs the same protection: anything written
+ * to a shared location "can end up copied/shared like any other file" (see
+ * `telegram-backup.ts`'s `encryptFullBackupBytes` doc comment), and a whole
+ * year of bookings/sales sitting in cleartext in Downloads was exactly that
+ * risk. Browser/PWA: Blob download, same as before. Desktop: native Save
+ * dialog + `tauri-plugin-fs`'s binary `writeFile` (not `writeTextFile` —
+ * the bytes are an encrypted container, not text), matching backup.ts's
  * `downloadBackup`. Returns `false` if a desktop Save dialog was cancelled,
  * so `archiveYear` below can stop before deleting anything — the archive
  * must not be considered "downloaded" if the user backed out of the dialog.
  *
  * Android is matched before the generic desktop branch and skips that Save
  * dialog entirely: on Android, `save()` hands back a `content://` URI that
- * `writeTextFile()` cannot actually write to — it fails silently rather than
+ * `tauri-plugin-fs` cannot actually write to — it fails silently rather than
  * throwing, so this used to return `true` (a real path, from the dialog)
  * while leaving a 0-byte file on disk. That's the worst possible failure
  * mode for this specific function: `archiveYear` deletes the local rows
- * right after `downloadText` reports success, so a silent 0-byte write here
- * meant permanently losing a year of bookings/sales with no usable backup of
- * them anywhere. Routing Android through `saveExportFile` (the same
- * MediaStore-backed plugin used for backups/exports) makes the write
+ * right after `saveArchiveBytes` reports success, so a silent 0-byte write
+ * here meant permanently losing a year of bookings/sales with no usable
+ * backup of them anywhere. Routing Android through `saveExportFile` (the
+ * same MediaStore-backed plugin used for backups/exports) makes the write
  * actually succeed-or-fail honestly, so that guarantee holds again.
  */
-async function downloadText(text: string, name: string): Promise<boolean> {
+async function saveArchiveBytes(bytes: Uint8Array, name: string): Promise<boolean> {
   if (isAndroid()) {
-    const bytes = new TextEncoder().encode(text);
-    const result = await saveExportFile(bytes, name, "application/json");
+    const result = await saveExportFile(bytes, name, "application/octet-stream");
     // archiveYear deletes rows once this reports success, so a failure must
     // be loud and carry its reason rather than a silent false.
     if (!result.saved)
@@ -144,16 +147,18 @@ async function downloadText(text: string, name: string): Promise<boolean> {
   }
   if (isDesktop()) {
     const { save } = await import("@tauri-apps/plugin-dialog");
-    const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+    const { writeFile } = await import("@tauri-apps/plugin-fs");
     const path = await save({
       defaultPath: name,
-      filters: [{ name: "Ledger archive", extensions: ["db", "json"] }],
+      filters: [{ name: "Ledger archive", extensions: ["db"] }],
     });
     if (!path) return false;
-    await writeTextFile(path, text);
+    await writeFile(path, bytes);
     return true;
   }
-  const blob = new Blob([text], { type: "application/json" });
+  const blob = new Blob([bytes.slice().buffer as ArrayBuffer], {
+    type: "application/octet-stream",
+  });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -175,7 +180,7 @@ export type ArchiveResult = {
  * Archives one year: Telegram upload → local download → delete rows. Any
  * failure before the delete leaves the data completely untouched —
  * including the user cancelling the desktop Save dialog (see
- * `downloadText` above), a missing/invalid Telegram setup, a missing backup
+ * `saveArchiveBytes` above), a missing/invalid Telegram setup, a missing backup
  * passphrase, or the Telegram upload itself failing partway through.
  *
  * Telegram is checked (and the archive encrypted) before the local Save
@@ -202,12 +207,14 @@ export async function archiveYear(year: number): Promise<ArchiveResult> {
   const bytes = new TextEncoder().encode(text);
 
   // Encrypted the same way as a full backup (see encryptFullBackupBytes) —
-  // Telegram never sees plaintext bookings/sales data. Throws a clear,
-  // actionable error if no backup passphrase has been set yet.
+  // neither Telegram nor the local file this function saves ever sees
+  // plaintext bookings/sales data; both get these same encrypted bytes.
+  // Throws a clear, actionable error if no backup passphrase has been set
+  // yet.
   const encrypted = await encryptFullBackupBytes(bytes);
 
   const fileName = archiveFileName(year);
-  const saved = await downloadText(text, fileName);
+  const saved = await saveArchiveBytes(encrypted, fileName);
   if (!saved) throw new Error(`Archive wasn't saved — nothing was deleted. Try again.`);
 
   let telegramSession: string;

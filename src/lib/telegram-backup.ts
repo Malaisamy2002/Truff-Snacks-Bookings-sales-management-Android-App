@@ -1,6 +1,7 @@
 const loadJSZip = async () => (await import("jszip")).default;
 import { db, table, DATA_TABLES, nowIso, type ExpenseRow, type ReceiptHashRow } from "./localdb";
 import { restoreBackup, type BackupFile } from "./backup";
+import { findInvalidReceiptHashRows } from "./backup-validate";
 import { resolveImportAction, sha256Hex } from "./receipts-share";
 import {
   appDocumentExists,
@@ -11,8 +12,7 @@ import {
   saveToAppDocuments,
 } from "./desktop";
 import { secureDelete, secureGet, secureSet } from "./android-secure-store";
-import { decryptBackup, encryptBackup, isEncryptedBackup } from "./backup-crypto";
-import { readBackupPassphrase } from "./backup-passphrase";
+import { decryptFullBackupBytes, encryptFullBackupBytes } from "./backup-crypto";
 
 /**
  * Telegram full backup — ONE archive, ONE destination, ONE restore action.
@@ -173,24 +173,6 @@ export async function buildFullBackup(
   return { backup, bytes, missingFiles };
 }
 
-/**
- * Encrypts a built backup's zip bytes with this device's stored backup
- * passphrase (see `backup-passphrase.ts`) — audit item 1.4. Every path that
- * sends the archive somewhere it doesn't fully control (Telegram) or that
- * writes it to a shared location (the local-save fallback, which can end up
- * copied/shared like any other file) should call this on `buildFullBackup`'s
- * `bytes` before handing them off. Throws a plain, actionable error if no
- * passphrase has been set yet rather than silently falling back to plaintext.
- */
-export async function encryptFullBackupBytes(bytes: Uint8Array): Promise<Uint8Array> {
-  const passphrase = await readBackupPassphrase();
-  if (!passphrase)
-    throw new Error(
-      "Set a backup encryption passphrase (Settings → Backup encryption) before backing up.",
-    );
-  return encryptBackup(bytes, passphrase);
-}
-
 export type RestoreFullBackupResult = {
   rowsRestored: number;
   filesRestored: number;
@@ -215,21 +197,29 @@ export async function restoreFullBackup(
   mode: "replace" | "merge" = "replace",
 ): Promise<RestoreFullBackupResult> {
   let bytes = archiveBytes instanceof Uint8Array ? archiveBytes : new Uint8Array(archiveBytes);
-  // Archives made after the 1.4 fix are encrypted (see `encryptFullBackupBytes`);
-  // older archives made before it are plain zips. Detect and handle both so
-  // a backup someone already has saved/sent doesn't become unrestorable.
-  if (isEncryptedBackup(bytes)) {
-    const passphrase = await readBackupPassphrase();
-    if (!passphrase)
-      throw new Error(
-        "This backup is encrypted. Enter the same backup passphrase used to create it (Settings → Backup encryption) and try again.",
-      );
-    bytes = await decryptBackup(bytes, passphrase);
-  }
+  // Archives made after encryption was added are encrypted (see
+  // `encryptFullBackupBytes`); older archives made before it are plain
+  // zips. `decryptFullBackupBytes` detects and handles both so a backup
+  // someone already has saved/sent doesn't become unrestorable.
+  bytes = await decryptFullBackupBytes(bytes);
   const zip = await (await loadJSZip()).loadAsync(bytes);
   const manifestEntry = zip.files[MANIFEST_NAME];
   if (!manifestEntry || manifestEntry.dir) throw new Error("This archive has no manifest.json");
   const backup = parseFullBackupManifest(await manifestEntry.async("string"));
+
+  // `receipt_hashes` isn't in BACKUP_TABLES (see DATA_TABLES in localdb.ts),
+  // so restoreBackup()'s own row validation below never sees these rows —
+  // check them here, before restoreBackup touches anything, so a corrupted
+  // receipt-hashes block can't let the main tables get restored (and, in
+  // replace mode, cleared) while this half of the archive is left broken.
+  const hashRows = (backup.tables["receipt_hashes"] ?? []) as unknown as ReceiptHashRow[];
+  const hashProblems = findInvalidReceiptHashRows(hashRows);
+  if (hashProblems.length > 0)
+    throw new Error(
+      `This backup's receipt-hash records look corrupted (${hashProblems.length} bad row${
+        hashProblems.length === 1 ? "" : "s"
+      }) — nothing was restored.`,
+    );
 
   const legacy: BackupFile = {
     format: "turf-snack-ledger",
@@ -239,14 +229,12 @@ export async function restoreFullBackup(
   };
   const rowsRestored = await restoreBackup(legacy, mode);
 
-  // `receipts` and `receipt_hashes` aren't in BACKUP_TABLES (see DATA_TABLES
-  // in localdb.ts), so the restoreBackup() call above never touches either
-  // one — `receipts` is rebuilt below from the zip's actual file bytes
-  // (using its captured `created_at`, not "now"), and `receipt_hashes` is
-  // restored here with the same replace/merge semantics as everything else:
-  // replace wipes and reinserts every hash the archive carried, merge only
-  // adds hashes for paths this device doesn't already have one for.
-  const hashRows = (backup.tables["receipt_hashes"] ?? []) as unknown as ReceiptHashRow[];
+  // `receipts` isn't in BACKUP_TABLES either, so it's rebuilt below from the
+  // zip's actual file bytes (using its captured `created_at`, not "now").
+  // `receipt_hashes` (validated above) is restored here with the same
+  // replace/merge semantics as everything else: replace wipes and reinserts
+  // every hash the archive carried, merge only adds hashes for paths this
+  // device doesn't already have one for.
   if (hashRows.length > 0) {
     if (mode === "replace") {
       await db.receipt_hashes.clear();
