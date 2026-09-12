@@ -449,7 +449,20 @@ async function readSecret(
   secureStoreKey: string,
 ): Promise<string> {
   if (isAndroid()) {
-    return (await secureGet(secureStoreKey)) ?? "";
+    const secure = await secureGet(secureStoreKey);
+    if (secure !== null) return secure;
+    // secureGet() returns null both for "nothing stored" and for "the
+    // secure store rejected/failed the read" (see android-secure-store.ts).
+    // writeSecret()'s Android branch falls back to localStorage on a
+    // rejected/failed write, so the read path has to check the same
+    // fallback location — otherwise a value that *was* saved (just not
+    // into the secure store) silently reads back as empty forever.
+    if (typeof window === "undefined") return "";
+    try {
+      return window.localStorage.getItem(webKey) ?? "";
+    } catch {
+      return "";
+    }
   }
   if (isDesktop()) {
     const { invoke } = await import("@tauri-apps/api/core");

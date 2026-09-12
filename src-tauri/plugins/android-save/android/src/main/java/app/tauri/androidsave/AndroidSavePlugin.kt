@@ -296,7 +296,9 @@ class AndroidSavePlugin(private val activity: Activity) : Plugin(activity) {
      * trusting an arbitrary caller-supplied name (see `android-secure-store.ts`).
      */
     private fun isAllowedSecureKey(key: String): Boolean =
-        key == "telegram-backup-token" || key == "backup-passphrase"
+        key == "telegram-backup-token" ||
+            key == "telegram-backup-extra-tokens" ||
+            key == "backup-passphrase"
 
     private val securePrefs: SharedPreferences by lazy {
         val masterKey = MasterKey.Builder(activity)
