@@ -3,7 +3,7 @@ import QRCode from "qrcode";
 import { rupees } from "./money";
 import type { ReceiptDoc } from "./receipt";
 import { paperInfo, paperWidthMm, type PrintSettings } from "./print";
-import { drawAppStrip, resolveApps } from "./receipt-upi";
+import { drawAppStrip, drawUpiMark, resolveApps } from "./receipt-upi";
 
 /**
  * "Premium" receipt/invoice templates — the boxed, two-tone, letterhead-style
@@ -499,6 +499,7 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
         pdf.setFontSize(8 * scale);
         pdf.setTextColor(...navy);
         pdf.text("SCAN & PAY", marginX + 3, y + 6);
+        drawUpiMark(pdf, marginX + 3 + pdf.getTextWidth("SCAN & PAY") + 3, y + 6, 8 * scale, navy);
         pdf.setFont("helvetica", "normal");
         pdf.setFontSize(bodyFont * scale);
         pdf.setTextColor(40, 40, 40);
@@ -529,7 +530,21 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(7 * scale);
         pdf.setTextColor(...navy);
-        pdf.text("SCAN & PAY", centerX, y + 3, { align: "center" });
+        const scanLabelW = pdf.getTextWidth("SCAN & PAY");
+        const upiMarkW = drawUpiMark(pdf, 0, -1000, 7 * scale, navy); // measure off-page
+        const headerGap = 3;
+        pdf.text(
+          "SCAN & PAY",
+          centerX - (scanLabelW + headerGap + upiMarkW) / 2,
+          y + 3,
+        );
+        drawUpiMark(
+          pdf,
+          centerX - (scanLabelW + headerGap + upiMarkW) / 2 + scanLabelW + headerGap,
+          y + 3,
+          7 * scale,
+          navy,
+        );
         drawQr(
           pdf,
           centerX - qrSize / 2,
@@ -605,7 +620,21 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(10 * scale);
       pdf.setTextColor(...navy);
-      pdf.text("SCAN & PAY", centerX, paymentY, { align: "center" });
+      const deferredLabelW = pdf.getTextWidth("SCAN & PAY");
+      const deferredMarkW = drawUpiMark(pdf, 0, -1000, 10 * scale, navy); // measure off-page
+      const deferredGap = 3;
+      pdf.text(
+        "SCAN & PAY",
+        centerX - (deferredLabelW + deferredGap + deferredMarkW) / 2,
+        paymentY,
+      );
+      drawUpiMark(
+        pdf,
+        centerX - (deferredLabelW + deferredGap + deferredMarkW) / 2 + deferredLabelW + deferredGap,
+        paymentY,
+        10 * scale,
+        navy,
+      );
       drawQr(
         pdf,
         centerX - qrSize / 2,
@@ -836,7 +865,17 @@ function renderCondensed(doc: ReceiptDoc, s: PrintSettings): jsPDF {
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(7 * scale);
       pdf.setTextColor(20, 20, 20);
-      pdf.text("SCAN & PAY  ·  UPI", centerX, y, { align: "center" });
+      const slimLabelW = pdf.getTextWidth("SCAN & PAY");
+      const slimMarkW = drawUpiMark(pdf, 0, -1000, 7 * scale, [20, 20, 20]); // measure off-page
+      const slimGap = 2.5;
+      pdf.text("SCAN & PAY", centerX - (slimLabelW + slimGap + slimMarkW) / 2, y);
+      drawUpiMark(
+        pdf,
+        centerX - (slimLabelW + slimGap + slimMarkW) / 2 + slimLabelW + slimGap,
+        y,
+        7 * scale,
+        [20, 20, 20],
+      );
       y += 2;
       drawQr(
         pdf,

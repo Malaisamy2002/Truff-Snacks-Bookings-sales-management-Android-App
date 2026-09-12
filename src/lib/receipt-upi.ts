@@ -31,6 +31,44 @@ export const DEFAULT_UPI_APPS: UpiAppId[] = ["gpay", "phonepe"];
 
 export type RGB = [number, number, number];
 
+/**
+ * Official NPCI UPI mark — bold "UPI" wordmark followed by the saffron /
+ * white / green tricolour arrow, matching the current npci.org.in logo.
+ * Drawn as vector shapes (no bitmap asset) so it prints crisp at any size.
+ * `textColor` lets callers match their own header — navy on the white
+ * "SCAN & PAY" cards this app uses. The arrow's middle stripe is always
+ * painted opaque white, so the tricolour still reads correctly if a caller
+ * ever puts this on a dark background.
+ */
+export function drawUpiMark(pdf: jsPDF, x: number, y: number, fontSize: number, textColor: RGB) {
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(fontSize);
+  pdf.setTextColor(...textColor);
+  pdf.text("UPI", x, y);
+  const textW = pdf.getTextWidth("UPI");
+
+  const gap = fontSize * 0.22;
+  const arrowH = fontSize * 0.82;
+  const arrowW = arrowH * 0.6;
+  const step = arrowW * 0.42;
+  const ax = x + textW + gap;
+  const topY = y - arrowH * 0.76;
+  const botY = y + arrowH * 0.24;
+  const midY = (topY + botY) / 2;
+  const stripes: RGB[] = [
+    [255, 153, 51],
+    [255, 255, 255],
+    [19, 136, 8],
+  ];
+  stripes.forEach((color, i) => {
+    const ox = ax + i * step;
+    pdf.setFillColor(...color);
+    pdf.triangle(ox, topY, ox, botY, ox + arrowW, midY, "F");
+  });
+
+  return textW + gap + step * (stripes.length - 1) + arrowW;
+}
+
 /** Resolves saved app ids to their chip definitions, preserving the order
  * the shop picked and silently dropping anything unrecognised. Falls back
  * to the default pair when the resulting list would otherwise be empty
