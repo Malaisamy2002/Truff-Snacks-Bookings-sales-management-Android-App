@@ -33,12 +33,11 @@ export type RGB = [number, number, number];
 
 /**
  * Official NPCI UPI mark — bold "UPI" wordmark followed by the saffron /
- * white / green tricolour arrow, matching the current npci.org.in logo.
- * Drawn as vector shapes (no bitmap asset) so it prints crisp at any size.
- * `textColor` lets callers match their own header — navy on the white
- * "SCAN & PAY" cards this app uses. The arrow's middle stripe is always
- * painted opaque white, so the tricolour still reads correctly if a caller
- * ever puts this on a dark background.
+ * green tricolour arrow, matching the current npci.org.in logo: two
+ * triangles (not three parallel stripes) leaning slightly right, split by
+ * a thin gap. Drawn as vector shapes (no bitmap asset) so it prints crisp
+ * at any size. `textColor` lets callers match their own header — navy on
+ * the white "SCAN & PAY" cards this app uses.
  */
 export function drawUpiMark(pdf: jsPDF, x: number, y: number, fontSize: number, textColor: RGB) {
   pdf.setFont("helvetica", "bold");
@@ -47,26 +46,27 @@ export function drawUpiMark(pdf: jsPDF, x: number, y: number, fontSize: number, 
   pdf.text("UPI", x, y);
   const textW = pdf.getTextWidth("UPI");
 
+  // Two-triangle arrow — saffron on top, green on bottom, each a
+  // right-pointing wedge (vertical-ish outer edge, tip on the right) —
+  // separated by a thin gap and leaned right at the outer corner, the way
+  // the real mark's arrowhead is cut and tilted, rather than three upright
+  // parallel stripes offset sideways.
   const gap = fontSize * 0.22;
   const arrowH = fontSize * 0.82;
-  const arrowW = arrowH * 0.6;
-  const step = arrowW * 0.42;
+  const arrowW = arrowH * 0.62;
   const ax = x + textW + gap;
   const topY = y - arrowH * 0.76;
   const botY = y + arrowH * 0.24;
   const midY = (topY + botY) / 2;
-  const stripes: RGB[] = [
-    [255, 153, 51],
-    [255, 255, 255],
-    [19, 136, 8],
-  ];
-  stripes.forEach((color, i) => {
-    const ox = ax + i * step;
-    pdf.setFillColor(...color);
-    pdf.triangle(ox, topY, ox, botY, ox + arrowW, midY, "F");
-  });
+  const slit = arrowH * 0.09; // thin gap between the two triangles
+  const lean = arrowW * 0.22; // rightward tilt of each triangle's outer corner
 
-  return textW + gap + step * (stripes.length - 1) + arrowW;
+  pdf.setFillColor(255, 153, 51);
+  pdf.triangle(ax + lean, topY, ax, midY - slit, ax + arrowW, (topY + midY - slit) / 2, "F");
+  pdf.setFillColor(19, 136, 8);
+  pdf.triangle(ax, midY + slit, ax + lean, botY, ax + arrowW, (midY + slit + botY) / 2, "F");
+
+  return textW + gap + arrowW;
 }
 
 /** Resolves saved app ids to their chip definitions, preserving the order
@@ -94,11 +94,79 @@ export function upiUri(opts: { upiId: string; payeeName?: string; note?: string 
   return `upi://pay?${params.toString()}`;
 }
 
+function appStripWidth(
+  apps: (typeof UPI_APPS)[number][],
+  logoH: number,
+  padX: number,
+  gap: number,
+) {
+  return apps.reduce(
+    (w, a) => w + logoH * PAYMENT_BRAND_LOGOS[a.brand as PaymentBrandId].aspect + padX * 2 + gap,
+    -gap,
+  );
+}
+
+/** Packs chips onto as few rows as fit within `maxRowWidth`, greedily
+ * adding to the current row and only starting a new one when the next chip
+ * would overflow it — so 2-3 apps still sit on one line, and only a full
+ * set of 4 (on a narrow enough card) wraps onto a second. */
+function wrapAppRows(
+  apps: (typeof UPI_APPS)[number][],
+  logoH: number,
+  padX: number,
+  gap: number,
+  maxRowWidth: number,
+): (typeof UPI_APPS)[number][][] {
+  const rows: (typeof UPI_APPS)[number][][] = [[]];
+  for (const app of apps) {
+    const row = rows[rows.length - 1] ?? [];
+    const trial = [...row, app];
+    if (row.length && appStripWidth(trial, logoH, padX, gap) > maxRowWidth) {
+      rows.push([app]);
+    } else {
+      rows[rows.length - 1] = trial;
+    }
+  }
+  return rows;
+}
+
+function appStripChipMetrics(fontSize: number, mono: boolean) {
+  const padX = mono ? 0.8 : 1;
+  const gap = 1.2;
+  const rowGap = 1;
+  const logoH = Math.max(2.8, fontSize * 0.62);
+  const padY = 0.45;
+  const rowH = logoH + padY * 2;
+  return { padX, gap, rowGap, logoH, padY, rowH };
+}
+
+/** Height the app-chip strip will consume for a given width budget, without
+ * drawing anything — lets callers reserve the right amount of vertical
+ * space (the wide-layout overflow check, the narrow-slip cursor advance)
+ * even when the shop's picked apps need to wrap onto a second row. */
+export function estimateAppStripHeight(
+  apps: (typeof UPI_APPS)[number][],
+  fontSize: number,
+  mono: boolean,
+  maxRowWidth: number,
+): number {
+  const { padX, gap, rowGap, logoH, rowH } = appStripChipMetrics(fontSize, mono);
+  const rows = wrapAppRows(apps, logoH, padX, gap, maxRowWidth);
+  return rows.length * rowH + (rows.length - 1) * rowGap;
+}
+
 /**
  * Official payment wordmarks under the QR. They are embedded locally so the
  * invoice export remains offline and keeps the brand typography instead of
  * substituting a generic font.
- * Returns the row height consumed, so callers can advance their cursor by it.
+ *
+ * Wraps onto a second row — instead of running past the edge of the card,
+ * which is what a 4-app selection used to do — whenever the full strip
+ * doesn't fit the width budget in `bounds`. Each row is centred
+ * independently and clamped inside `bounds`, so it stays on the card even
+ * when `centerX` (usually the QR's centre) sits off to one side rather than
+ * at the panel's true centre. Returns the total height consumed, so callers
+ * can advance their cursor by it.
  */
 export function drawAppStrip(
   pdf: jsPDF,
@@ -107,27 +175,31 @@ export function drawAppStrip(
   y: number,
   fontSize: number,
   mono: boolean,
+  bounds?: { left: number; right: number },
 ): number {
-  const gap = 1.2;
-  const logoH = Math.max(2.8, fontSize * 0.62);
-  const padX = mono ? 0.8 : 1;
-  const padY = 0.45;
-  const rowH = logoH + padY * 2;
-  const total = apps.reduce(
-    (w, a) => w + logoH * PAYMENT_BRAND_LOGOS[a.brand as PaymentBrandId].aspect + padX * 2 + gap,
-    -gap,
-  );
-  let x = centerX - total / 2;
-  for (const app of apps) {
-    const logo = PAYMENT_BRAND_LOGOS[app.brand as PaymentBrandId];
-    const logoW = logoH * logo.aspect;
-    const w = logoW + padX * 2;
-    pdf.setFillColor(255, 255, 255);
-    pdf.setDrawColor(mono ? 90 : 220, mono ? 90 : 222, mono ? 90 : 228);
-    pdf.setLineWidth(0.15);
-    pdf.roundedRect(x, y, w, rowH, 0.7, 0.7, "FD");
-    pdf.addImage(logo.dataUrl, "PNG", x + padX, y + padY, logoW, logoH);
-    x += w + gap;
+  const { padX, gap, rowGap, logoH, padY, rowH } = appStripChipMetrics(fontSize, mono);
+  const left = bounds?.left ?? -1e6;
+  const right = bounds?.right ?? 1e6;
+  const maxRowWidth = Math.max(logoH * 2, right - left);
+  const rows = wrapAppRows(apps, logoH, padX, gap, maxRowWidth);
+
+  let rowY = y;
+  for (const row of rows) {
+    const rowTotal = appStripWidth(row, logoH, padX, gap);
+    let x = centerX - rowTotal / 2;
+    x = Math.min(Math.max(x, left), right - rowTotal);
+    for (const app of row) {
+      const logo = PAYMENT_BRAND_LOGOS[app.brand as PaymentBrandId];
+      const logoW = logoH * logo.aspect;
+      const w = logoW + padX * 2;
+      pdf.setFillColor(255, 255, 255);
+      pdf.setDrawColor(mono ? 90 : 220, mono ? 90 : 222, mono ? 90 : 228);
+      pdf.setLineWidth(0.15);
+      pdf.roundedRect(x, rowY, w, rowH, 0.7, 0.7, "FD");
+      pdf.addImage(logo.dataUrl, "PNG", x + padX, rowY + padY, logoW, logoH);
+      x += w + gap;
+    }
+    rowY += rowH + rowGap;
   }
-  return rowH;
+  return rowY - y - rowGap;
 }

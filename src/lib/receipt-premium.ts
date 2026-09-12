@@ -3,7 +3,7 @@ import QRCode from "qrcode";
 import { rupees } from "./money";
 import type { ReceiptDoc } from "./receipt";
 import { paperInfo, paperWidthMm, type PrintSettings } from "./print";
-import { drawAppStrip, drawUpiMark, resolveApps } from "./receipt-upi";
+import { drawAppStrip, drawUpiMark, estimateAppStripHeight, resolveApps } from "./receipt-upi";
 
 /**
  * "Premium" receipt/invoice templates — the boxed, two-tone, letterhead-style
@@ -488,9 +488,23 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
       let chipRowH = 0;
       pdf.setFillColor(...fill);
       pdf.setDrawColor(...RULE);
+      // Bounds the chip strip is allowed to occupy: to the right of the
+      // "Pay to"/UPI-ID column on the wide layout (it still has the whole
+      // content width to spread into if it needs to), or the full content
+      // width on the narrow roll — either way, never past the page margins,
+      // which is what let a 4-app selection run off the card before.
+      const chipBounds = wide
+        ? { left: marginX + payW + 4, right: marginX + contentW }
+        : { left: marginX, right: marginX + contentW };
+      const chipStripEstimate = estimateAppStripHeight(
+        chipApps,
+        chipFont,
+        mono,
+        chipBounds.right - chipBounds.left,
+      );
       const estimatedHeight = wide
-        ? boxH + 2.5 + Math.max(chipFont * 0.62 + 0.9, 3) + 4
-        : qrSize + 11 + Math.max(chipFont * 0.62 + 0.9, 3) + 4;
+        ? boxH + 2.5 + chipStripEstimate + 4
+        : qrSize + 11 + chipStripEstimate + 4;
       if (wide && y + estimatedHeight > pageH - footH - 2) {
         deferredUpi = true;
       } else if (wide) {
@@ -524,6 +538,7 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
           y + boxH + 2.5,
           chipFont,
           mono,
+          chipBounds,
         );
       } else {
         const centerX = marginX + contentW / 2;
@@ -558,7 +573,7 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
         pdf.text(fitTextToWidth(pdf, s.upiId, contentW), centerX, y + qrSize + 8, {
           align: "center",
         });
-        chipRowH = drawAppStrip(pdf, chipApps, centerX, y + qrSize + 11, chipFont, mono);
+        chipRowH = drawAppStrip(pdf, chipApps, centerX, y + qrSize + 11, chipFont, mono, chipBounds);
       }
       // Wide (A4/A5) draws a fixed-height boxed row, then the chip strip
       // hangs chipFont*0.72 (its own row height) below the box. The narrow
@@ -656,6 +671,7 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
         paymentY + qrSize + 11,
         deferredChipFont,
         !wantColor,
+        { left: marginX, right: marginX + contentW },
       );
       if (footerText || addrLines.length) {
         pdf.setFillColor(...navy);
@@ -891,8 +907,14 @@ function renderCondensed(doc: ReceiptDoc, s: PrintSettings): jsPDF {
         align: "center",
       });
       y += smallFont * 0.62;
-      drawAppStrip(pdf, resolveApps(s.upiApps), centerX, y, 5 * scale, true);
-      y += Math.max(2.8, 5 * scale * 0.62) + 6.2;
+      const slimChipRowH = drawAppStrip(pdf, resolveApps(s.upiApps), centerX, y, 5 * scale, true, {
+        left: marginX,
+        right: marginX + contentW,
+      });
+      // Keeps the same ~9mm gap before the PAID/balance line the old fixed
+      // constant produced, but now anchored to the chip strip's *actual*
+      // height (which may be two rows) instead of assuming one.
+      y += slimChipRowH + 5.3;
       if (statusValue === "PAID") {
         pdf.setFont("helvetica", "bold");
         pdf.text("PAID", centerX, y, { align: "center" });
