@@ -67,6 +67,7 @@
     "exceljs": "^4.4.0",
     "input-otp": "^1.5.0",
     "jspdf": "^4.2.1",
+    "pdfjs-dist": "^6.3.289",
     "jsqr": "^1.4.0",
     "jszip": "^3.10.1",
     "lucide-react": "0.575.0",

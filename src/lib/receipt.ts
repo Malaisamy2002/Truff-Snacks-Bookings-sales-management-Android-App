@@ -27,6 +27,7 @@ import {
 import { rupees } from "./money";
 import type { SnackSale, TurfBooking } from "./ops";
 import { paperInfo, paperWidthMm, readPrintSettings, type PrintSettings } from "./print";
+import { printPdfBytesAsImages } from "./print-raster";
 import { buildPremiumReceiptPdf } from "./receipt-premium";
 import { readAppSettings } from "./settings";
 
@@ -842,6 +843,28 @@ export async function printReceipt(
 
   const copies = Math.max(1, Math.min(5, Math.round(s.copies || 1)));
   let printed = true;
+
+  // Desktop (Tauri/WebView2): WebView2's built-in PDF viewer refuses a
+  // programmatic print, so the hidden-PDF-iframe route below never reaches a
+  // printer there — it silently fell through to "open the saved PDF", which
+  // is why Print on Windows was opening an external PDF viewer instead of the
+  // printer dialog. Rasterising the pages and printing them as plain HTML
+  // uses the webview's ordinary print pipeline, which does show the real
+  // Windows print dialog. Falls through to the old iframe path below if it
+  // can't run (isAndroid() already returned earlier, so this is real desktop
+  // only).
+  if (isDesktop()) {
+    try {
+      printed = await printPdfBytesAsImages(new Uint8Array(pdf.output("arraybuffer") as ArrayBuffer), copies);
+    } catch {
+      printed = false;
+    }
+    if (printed) {
+      URL.revokeObjectURL(url);
+      return;
+    }
+  }
+
   for (let i = 0; i < copies; i++) {
     printed = await printPdfFrame(url);
     if (!printed) break;

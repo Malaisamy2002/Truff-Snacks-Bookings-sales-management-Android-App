@@ -1,9 +1,8 @@
 import { jsPDF } from "jspdf";
-import QRCode from "qrcode";
 import { rupees } from "./money";
 import type { ReceiptDoc } from "./receipt";
 import { paperInfo, paperWidthMm, type PrintSettings } from "./print";
-import { drawAppStrip, drawUpiMark, estimateAppStripHeight, resolveApps } from "./receipt-upi";
+import { drawUpiPanel, estimateUpiPanelHeight } from "./receipt-upi";
 
 /**
  * "Premium" receipt/invoice templates — the boxed, two-tone, letterhead-style
@@ -30,8 +29,12 @@ const RULE: [number, number, number] = [205, 208, 214];
 const imgFormat = (dataUrl: string): "PNG" | "JPEG" =>
   dataUrl.startsWith("data:image/jpeg") ? "JPEG" : "PNG";
 
-/** Shrinks a centered or single-column string to the available paper width
- * instead of letting long shop/contact text run into the page edge. */
+/** Shrinks `text` (with the CURRENT font/size already applied on `pdf`) down
+ * to fit `maxW` mm by dropping trailing characters and adding "…", instead
+ * of either overflowing a narrow column or chopping at some fixed character
+ * count that has no relationship to the actual glyph widths (a handful of
+ * "i"s and a handful of "W"s are not the same width). Mirrors the
+ * `fitToWidth` helper in receipt.ts's classic renderer. */
 const fitTextToWidth = (pdf: jsPDF, text: string, maxW: number): string => {
   const safeMaxW = Math.max(4, maxW);
   if (pdf.getTextWidth(text) <= safeMaxW) return text;
@@ -47,68 +50,8 @@ const pmoney = (n: number, symbol: string) => {
   return (v < 0 ? "-" : "") + prefix + Math.abs(v).toLocaleString("en-IN");
 };
 
-/** Builds the dark/light module grid for a QR code synchronously (no canvas
- * or async image decode needed), so it can be drawn as plain jsPDF rects —
- * same drawing pipeline as everything else on the receipt, and crisp at any
- * size since it's vector, not a rasterized PNG. */
-function qrGrid(text: string): boolean[][] | null {
-  try {
-    const qr = QRCode.create(text, { errorCorrectionLevel: "Q" });
-    const size = qr.modules.size;
-    const grid: boolean[][] = [];
-    for (let r = 0; r < size; r++) {
-      const row: boolean[] = [];
-      for (let c = 0; c < size; c++) row.push(!!qr.modules.get(r, c));
-      grid.push(row);
-    }
-    return grid;
-  } catch {
-    return null;
-  }
-}
-
-function drawQr(
-  pdf: jsPDF,
-  x: number,
-  y: number,
-  sizeMm: number,
-  text: string,
-  dark: [number, number, number] = [0, 0, 0],
-) {
-  const grid = qrGrid(text);
-  if (!grid) return;
-  const n = grid.length;
-  // Preserve the four-module quiet zone required by UPI scanners. Keeping it
-  // inside the white tile means the surrounding payment card can stay clean.
-  const quiet = 4;
-  const mod = sizeMm / (n + quiet * 2);
-  const originX = x + mod * quiet;
-  const originY = y + mod * quiet;
-  pdf.setFillColor(255, 255, 255);
-  pdf.rect(x, y, sizeMm, sizeMm, "F");
-  pdf.setFillColor(...dark);
-  for (let r = 0; r < n; r++) {
-    for (let c = 0; c < n; c++) {
-      if (grid[r]?.[c]) {
-        pdf.rect(originX + c * mod, originY + r * mod, mod + 0.02, mod + 0.02, "F");
-      }
-    }
-  }
-}
-
-/** UPI deep-link payload for the "Scan & Pay" QR — the standard `upi://pay`
- * URI every UPI app (Google Pay/PhonePe/Paytm/BHIM UPI) recognises. Amount/note are
- * only included when known so a blank/partial bill still yields a scannable
- * (if less prefilled) code. */
-function upiUri(upiId: string, payeeName: string, amount: number | null, note: string) {
-  const params = new URLSearchParams();
-  params.set("pa", upiId);
-  if (payeeName) params.set("pn", payeeName);
-  params.set("cu", "INR");
-  if (amount !== null && amount > 0) params.set("am", String(rupees(amount)));
-  if (note) params.set("tn", note.slice(0, 40));
-  return `upi://pay?${params.toString()}`;
-}
+/* The QR itself, the UPI payload and the whole "Scan & Pay" panel live in
+ * receipt-upi.ts so every paper size prints the identical block. */
 
 /** Entry point. Returns null when the current paper has no premium layout
  * (caller falls back to the classic renderer). */
@@ -154,8 +97,13 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
     const bodyFont = wide ? (kind === "a4" ? 10 : 8.5) : 7.5;
     const smallFont = wide ? (kind === "a4" ? 8 : 7) : 6;
 
-    // Footer geometry is calculated before drawing so long wrapped addresses
-    // never collide with the footer text or a payment panel on fixed sheets.
+    // Footer band content + height, computed up front (rather than at draw
+    // time) so both the UPI-panel QR-shrink sizing below AND the final
+    // footer draw agree on the same footH. A4/A5 have a *fixed* page height
+    // and the footer band used to be a fixed 12mm regardless of content — a
+    // long, wrapped shop address (the common case; see the default address
+    // in DEFAULT_PRINT_SETTINGS) ran past that fixed band and straight
+    // through the footer line printed underneath it.
     const footerText = [s.footerLine, s.shopPhone && s.showPhone ? `Ph: ${s.shopPhone}` : ""]
       .filter(Boolean)
       .join("   ·   ");
@@ -199,8 +147,7 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
       : [fitTextToWidth(pdf, shopName, nameMaxW)];
     if (nameLines.length > 2) {
       nameLines = nameLines.slice(0, 2);
-      const secondLine = nameLines[1];
-      if (secondLine) nameLines[1] = `${secondLine.replace(/\s+\S*$/, "")}…`;
+      nameLines[1] = `${(nameLines[1] ?? "").replace(/\s+\S*$/, "")}…`;
     }
     const nameLineH = headerFont * scale * 0.42; // mm per line at this font size
     const headerH = baseHeaderH + (nameLines.length - 1) * nameLineH;
@@ -300,15 +247,22 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
     ): number => {
       const rowH = (wide ? 5.5 : 4.4) * scale;
       const pad = 3;
-      const h = pad * 2 + rowH * rows.length + 5;
+      // A blank title (the roll layout's second card — see `infoRows` below)
+      // doesn't get a heading line drawn, so it shouldn't reserve a full
+      // rowH of blank space above its rows either; that used to just be dead
+      // air on top of the roll's "Details" card for no visible reason.
+      const titleH = title ? rowH : 0;
+      const h = pad * 2 + titleH + rowH * rows.length + 5;
       pdf.setFillColor(...fill);
       pdf.setDrawColor(...RULE);
       pdf.roundedRect(cardX, cardY, cardW, h, 1.5, 1.5, "FD");
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize((wide ? 8 : 6.5) * scale);
-      pdf.setTextColor(...navy);
-      pdf.text(title.toUpperCase(), cardX + pad, cardY + pad + 2);
-      let ry = cardY + pad + 2 + rowH;
+      if (title) {
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize((wide ? 8 : 6.5) * scale);
+        pdf.setTextColor(...navy);
+        pdf.text(title.toUpperCase(), cardX + pad, cardY + pad + 2);
+      }
+      let ry = cardY + pad + 2 + titleH;
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(bodyFont * scale);
       pdf.setTextColor(40, 40, 40);
@@ -316,8 +270,12 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
         pdf.setFont("helvetica", "bold");
         const label = fitTextToWidth(pdf, row.label, Math.max(4, cardW * 0.28));
         pdf.text(label, cardX + pad, ry);
-        pdf.setFont("helvetica", "normal");
+        // Measure the label while still bold — bold glyphs are wider than
+        // normal ones, so switching to "normal" before measuring (as this
+        // used to) under-measured the label and placed the value text
+        // partway on top of it on every single row of every info card.
         const labelW = pdf.getTextWidth(label);
+        pdf.setFont("helvetica", "normal");
         const valueX = cardX + pad + labelW;
         const valueMaxW = Math.max(4, cardW - pad - valueX + cardX);
         pdf.text(fitTextToWidth(pdf, `: ${row.value}`, valueMaxW), valueX, ry);
@@ -387,11 +345,16 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
     pdf.setFontSize(bodyFont * scale);
     doc.lines.forEach((line, i) => {
       const rawLines = pdf.splitTextToSize(line.label, labelColW - 2) as string[];
-      const labelLines = rawLines.slice(0, 2);
+      // Only ever show 2 lines of a wrapped description (with an ellipsis on
+      // the 2nd if there was more) — bandH below was already sized for up to
+      // 2 lines, but previously only rawLines[0] was ever drawn, silently
+      // dropping the wrapped remainder of any item name that didn't fit on
+      // one line.
+      const shownLines = rawLines.slice(0, 2);
       if (rawLines.length > 2) {
-        labelLines[1] = `${(labelLines[1] ?? "").replace(/\s+\S*$/, "")}…`;
+        shownLines[1] = `${(shownLines[1] ?? "").replace(/\s+\S*$/, "")}…`;
       }
-      const nLines = Math.max(1, labelLines.length) + (line.sub ? 1 : 0);
+      const nLines = shownLines.length + (line.sub ? 1 : 0);
       const bandH = rowH * Math.max(1, nLines * 0.72);
       if (i % 2 === 1) {
         pdf.setFillColor(...fill);
@@ -400,26 +363,31 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
       pdf.setTextColor(30, 30, 30);
       const ty = y + rowH * 0.62;
       pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(bodyFont * scale);
       pdf.text(String(i + 1), marginX + 2, ty);
-      labelLines.forEach((label, lineIndex) => {
-        pdf.text(label, marginX + noColW, ty + lineIndex * rowH * 0.62);
+      shownLines.forEach((lbl, li) => {
+        pdf.text(lbl, marginX + noColW, ty + li * rowH * 0.62);
       });
-      const qty = line.qty !== undefined ? String(line.qty) : "";
-      const amount = money(line.amount ?? 0);
       pdf.text(
-        fitTextToWidth(pdf, qty, qtyColW - 1),
+        fitTextToWidth(pdf, line.qty !== undefined ? String(line.qty) : "", qtyColW - 1),
         marginX + noColW + labelColW + qtyColW,
         ty,
         { align: "right" },
       );
-      pdf.text(fitTextToWidth(pdf, amount, amtColW - 1), width - marginX - 1, ty, {
-        align: "right",
-      });
+      pdf.text(
+        fitTextToWidth(pdf, money(line.amount ?? 0), amtColW - 1),
+        width - marginX - 1,
+        ty,
+        { align: "right" },
+      );
       if (line.sub) {
+        // Sits below however many description lines actually printed, not a
+        // fixed offset — otherwise a wrapped 2nd line and the sub line
+        // landed on top of each other.
+        const subY = ty + shownLines.length * rowH * 0.62;
         pdf.setFont("helvetica", "normal");
         pdf.setFontSize((wide ? 7.5 : 6) * scale);
         pdf.setTextColor(110, 110, 110);
-        const subY = ty + labelLines.length * rowH * 0.62;
         pdf.text(fitTextToWidth(pdf, line.sub, labelColW - 2), marginX + noColW, subY);
         pdf.setFontSize(bodyFont * scale);
       }
@@ -471,119 +439,74 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
 
     let deferredUpi = false;
 
-    // Payment / QR box — only when a UPI ID is configured.
+    // Payment / QR panel — only when a UPI ID is configured. Drawn by the
+    // shared drawUpiPanel (receipt-upi.ts) so A4/A5/80mm/58mm all render the
+    // identical amount-free "Scan & Pay" block.
     if (includeUpi && s.upiId.trim()) {
-      const grandVal = grand ? Number(grand.value.replace(/[^0-9.-]/g, "")) : null;
-      // Give the QR enough physical size to scan from a phone, especially on
-      // the 80 mm roll where the old 18 mm code was unnecessarily tiny.
-      const qrSize = wide ? 28 : 25;
-      const boxH = qrSize + (wide ? 6 : 4);
-      const payW = wide ? contentW - qrSize - 8 : contentW;
-      // App row (Google Pay/PhonePe/etc, from s.upiApps) drawn under the QR on
-      // every layout — same app list the shop picks in Settings, resolved
-      // the same way the "Pay via UPI" button resolves it.
-      const chipFont = (wide ? 6.2 : 5) * scale;
-      const chipApps = resolveApps(s.upiApps);
-      const mono = !wantColor;
-      let chipRowH = 0;
-      pdf.setFillColor(...fill);
-      pdf.setDrawColor(...RULE);
-      // Bounds the chip strip is allowed to occupy: to the right of the
-      // "Pay to"/UPI-ID column on the wide layout (it still has the whole
-      // content width to spread into if it needs to), or the full content
-      // width on the narrow roll — either way, never past the page margins,
-      // which is what let a 4-app selection run off the card before.
-      const chipBounds = wide
-        ? { left: marginX + payW + 4, right: marginX + contentW }
-        : { left: marginX, right: marginX + contentW };
-      const chipStripEstimate = estimateAppStripHeight(
-        chipApps,
-        chipFont,
-        mono,
-        chipBounds.right - chipBounds.left,
-      );
-      const estimatedHeight = wide
-        ? boxH + 2.5 + chipStripEstimate + 4
-        : qrSize + 11 + chipStripEstimate + 4;
-      if (wide && y + estimatedHeight > pageH - footH - 2) {
-        deferredUpi = true;
-      } else if (wide) {
-        pdf.roundedRect(marginX, y, payW, boxH, 1.5, 1.5, "FD");
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(8 * scale);
-        pdf.setTextColor(...navy);
-        pdf.text("SCAN & PAY", marginX + 3, y + 6);
-        drawUpiMark(pdf, marginX + 3 + pdf.getTextWidth("SCAN & PAY") + 3, y + 6, 8 * scale, navy);
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(bodyFont * scale);
-        pdf.setTextColor(40, 40, 40);
-        pdf.text(
-          fitTextToWidth(pdf, `UPI ID: ${s.upiId}`, payW - 6),
-          marginX + 3,
-          y + 12,
-        );
-        if (statusVal) pdf.text(`Status: ${statusVal}`, marginX + 3, y + 18);
-        pdf.roundedRect(marginX + payW + 4, y, qrSize + 4, boxH, 1.5, 1.5, "FD");
-        drawQr(
-          pdf,
-          marginX + payW + 6,
-          y + 2,
-          qrSize,
-          upiUri(s.upiId, s.shopName, grandVal, `${doc.kind} ${doc.docNo}`),
-        );
-        chipRowH = drawAppStrip(
-          pdf,
-          chipApps,
-          marginX + payW + 6 + qrSize / 2,
-          y + boxH + 2.5,
-          chipFont,
-          mono,
-          chipBounds,
-        );
-      } else {
-        const centerX = marginX + contentW / 2;
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(7 * scale);
-        pdf.setTextColor(...navy);
-        const scanLabelW = pdf.getTextWidth("SCAN & PAY");
-        const upiMarkW = drawUpiMark(pdf, 0, -1000, 7 * scale, navy); // measure off-page
-        const headerGap = 3;
-        pdf.text(
-          "SCAN & PAY",
-          centerX - (scanLabelW + headerGap + upiMarkW) / 2,
-          y + 3,
-        );
-        drawUpiMark(
-          pdf,
-          centerX - (scanLabelW + headerGap + upiMarkW) / 2 + scanLabelW + headerGap,
-          y + 3,
-          7 * scale,
-          navy,
-        );
-        drawQr(
-          pdf,
-          centerX - qrSize / 2,
-          y + 5,
-          qrSize,
-          upiUri(s.upiId, s.shopName, grandVal, `${doc.kind} ${doc.docNo}`),
-        );
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(smallFont * scale);
-        pdf.setTextColor(80, 80, 80);
-        pdf.text(fitTextToWidth(pdf, s.upiId, contentW), centerX, y + qrSize + 8, {
-          align: "center",
-        });
-        chipRowH = drawAppStrip(pdf, chipApps, centerX, y + qrSize + 11, chipFont, mono, chipBounds);
+      const balanceRow = doc.totals.find((t) => t.label === "Balance due");
+      const hasBalance = !!balanceRow;
+      const paidFlag = statusVal === "PAID";
+      // A4 has room to spare, but A5's fixed sheet height (unlike the roll
+      // layouts below, which grow the page to fit) means the full-size
+      // panel can run into the footer band on a normal-length bill. Shrink
+      // the QR just enough to clear the space actually left above the
+      // footer, rather than hardcoding a smaller size for "a5" that would
+      // either waste room on a short bill or still overflow a long one.
+      let qrSize: number | undefined;
+      if (wide) {
+        const bottomBuffer = 2;
+        const available = pageH - footH - bottomBuffer - y;
+        const maxQr = 30;
+        const minQr = 10;
+        let candidate = maxQr;
+        while (candidate > minQr) {
+          const h = estimateUpiPanelHeight({
+            width: contentW,
+            scale,
+            variant: "wide",
+            qrSize: candidate,
+            hasBalance,
+            paid: paidFlag,
+          });
+          if (h <= available) break;
+          candidate -= 1;
+        }
+        qrSize = candidate;
       }
-      // Wide (A4/A5) draws a fixed-height boxed row, then the chip strip
-      // hangs chipFont*0.72 (its own row height) below the box. The narrow
-      // (80mm) layout stacks QR → UPI-ID caption → chip strip, so its
-      // content runs to qrSize + 11 (the chip row's baseline) plus its own
-      // row height. Either way, advance past the chip row plus a gap —
-      // not past boxH/qrSize+8 alone (both now undershoot, since the chip
-      // row wasn't part of either original measurement).
-      if (!deferredUpi) {
-        y += wide ? boxH + 2.5 + chipRowH + 4 : qrSize + 11 + chipRowH + 4;
+      const requiredPanelH = estimateUpiPanelHeight({
+        width: contentW,
+        scale,
+        variant: wide ? "wide" : "roll",
+        qrSize,
+        hasBalance,
+        paid: paidFlag,
+      });
+      // A5 is a fixed-height sheet. If a long bill leaves less room than the
+      // smallest readable QR panel, never draw a partial card under the
+      // footer; move the payment panel to a clean second A5 page instead.
+      if (wide && y + requiredPanelH > pageH - footH - 2) {
+        deferredUpi = true;
+      } else {
+        const panelH = drawUpiPanel(pdf, {
+          x: marginX,
+          y,
+          width: contentW,
+          upiId: s.upiId,
+          payeeName: s.shopName,
+          reference: doc.docNo,
+          balanceText: balanceRow?.value ?? null,
+          status: statusVal,
+          scale,
+          variant: wide ? "wide" : "roll",
+          mono: !wantColor,
+          apps: s.upiApps,
+          navy,
+          gold,
+          fill,
+          green,
+          ...(qrSize !== undefined ? { qrSize } : {}),
+        });
+        y += panelH + (wide ? 6 : 5);
       }
     }
 
@@ -599,80 +522,56 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
       y += 3;
     }
 
-    // Footer band.
-    if (footerText || (wide && s.shopAddress)) {
+    // Footer band — footerText/addrLines/footH were computed up front (see
+    // above) so this always has room for however many lines the address
+    // actually wrapped to.
+    if (footerText || addrLines.length) {
       pdf.setFillColor(...navy);
       pdf.rect(0, pageH - footH, width, footH, "F");
       pdf.setTextColor(255, 255, 255);
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(smallFont * scale);
-      if (addrLines.length) {
-        let fy = pageH - footH + footPad + smallFont * scale * 0.45;
-        for (const line of addrLines) {
-          pdf.text(line, width / 2, fy, { align: "center" });
-          fy += addrLineH;
-        }
+      let fy = pageH - footH + footPad + smallFont * scale * 0.45;
+      for (const line of addrLines) {
+        pdf.text(line, width / 2, fy, { align: "center" });
+        fy += addrLineH;
       }
+      if (addrLines.length && footerText) fy += 1.5;
       if (footerText) {
-        pdf.text(
-          fitTextToWidth(pdf, footerText, contentW),
-          width / 2,
-          pageH - footH + (addrLines.length ? footPad + addrLines.length * addrLineH + 1.5 : footH * 0.6),
-          {
-            align: "center",
-          },
-        );
+        pdf.text(fitTextToWidth(pdf, footerText, contentW), width / 2, fy, { align: "center" });
       }
     }
 
     if (deferredUpi) {
+      // Keep the bill page clean and give the QR its own complete sheet when
+      // the fixed A5/A4 page has no remaining vertical capacity.
       pdf.addPage([width, pageH]);
       const paymentY = kind === "a4" ? 24 : 18;
-      const centerX = marginX + contentW / 2;
-      const qrSize = kind === "a4" ? 30 : 24;
-      const grandVal = doc.totals.find((t) => t.strong);
-      const grandAmount = grandVal ? Number(grandVal.value.replace(/[^0-9.-]/g, "")) : null;
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(10 * scale);
-      pdf.setTextColor(...navy);
-      const deferredLabelW = pdf.getTextWidth("SCAN & PAY");
-      const deferredMarkW = drawUpiMark(pdf, 0, -1000, 10 * scale, navy); // measure off-page
-      const deferredGap = 3;
-      pdf.text(
-        "SCAN & PAY",
-        centerX - (deferredLabelW + deferredGap + deferredMarkW) / 2,
-        paymentY,
-      );
-      drawUpiMark(
-        pdf,
-        centerX - (deferredLabelW + deferredGap + deferredMarkW) / 2 + deferredLabelW + deferredGap,
-        paymentY,
-        10 * scale,
+      const balanceRow = doc.totals.find((t) => t.label === "Balance due");
+      const paidFlag = statusVal === "PAID";
+      const panelH = drawUpiPanel(pdf, {
+        x: marginX,
+        y: paymentY,
+        width: contentW,
+        upiId: s.upiId,
+        payeeName: s.shopName,
+        reference: doc.docNo,
+        balanceText: balanceRow?.value ?? null,
+        status: statusVal,
+        scale,
+        variant: "wide",
+        apps: s.upiApps,
         navy,
-      );
-      drawQr(
-        pdf,
-        centerX - qrSize / 2,
-        paymentY + 5,
-        qrSize,
-        upiUri(s.upiId, s.shopName, grandAmount, `${doc.kind} ${doc.docNo}`),
-      );
+        gold,
+        fill,
+        green,
+        qrSize: kind === "a4" ? 30 : 24,
+      });
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(smallFont * scale);
-      pdf.setTextColor(80, 80, 80);
-      pdf.text(fitTextToWidth(pdf, s.upiId, contentW), centerX, paymentY + qrSize + 8, {
-        align: "center",
-      });
-      const deferredChipFont = (kind === "a4" ? 6.2 : 5) * scale;
-      drawAppStrip(
-        pdf,
-        resolveApps(s.upiApps),
-        centerX,
-        paymentY + qrSize + 11,
-        deferredChipFont,
-        !wantColor,
-        { left: marginX, right: marginX + contentW },
-      );
+      pdf.setTextColor(...navy);
+      pdf.text("Payment details", width / 2, paymentY - 7, { align: "center" });
+      // The second page uses the same footer geometry as the bill page.
       if (footerText || addrLines.length) {
         pdf.setFillColor(...navy);
         pdf.rect(0, pageH - footH, width, footH, "F");
@@ -691,6 +590,7 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
           });
         }
       }
+      y = Math.max(y, paymentY + panelH);
     }
 
     return y;
@@ -774,8 +674,11 @@ function renderCondensed(doc: ReceiptDoc, s: PrintSettings): jsPDF {
       pdf.setFontSize(bodyFont);
       pdf.setTextColor(20, 20, 20);
       pdf.text(`${label}:`, marginX, y);
-      pdf.setFont("helvetica", "normal");
+      // Same fix as the wide info cards above: measure while still bold,
+      // since the label was just drawn bold and normal-weight glyphs
+      // measure narrower, which pushed the value left into the label.
       const labelW = pdf.getTextWidth(`${label}: `);
+      pdf.setFont("helvetica", "normal");
       const maxW = contentW - labelW;
       pdf.text(fitTextToWidth(pdf, value, maxW), marginX + labelW, y);
       y += bodyFont * 0.6;
@@ -861,84 +764,30 @@ function renderCondensed(doc: ReceiptDoc, s: PrintSettings): jsPDF {
       y += 2;
     }
 
-    // Narrow premium slips still get the same QR payment information as the
-    // 80mm/A5 layouts. Keep every centered value measured so a long VPA
-    // cannot run off either edge of a 50mm roll.
+    // Payment / QR panel — only when a UPI ID is configured. Same shared
+    // drawUpiPanel block the A4/A5/80mm layouts use (see renderBoxed above),
+    // in its condensed "slim" variant.
     if (s.upiId.trim()) {
-      const centerX = width / 2;
-      const qrSize = Math.min(contentW - 6, 30);
-      const grandAmount = grand
-        ? Number(grand.value.replace(/[^0-9.-]/g, ""))
-        : null;
-      const statusValue = (
-        doc.totals.find((total) => total.label === "Status")?.value || ""
-      ).toUpperCase();
-      pdf.setDrawColor(...RULE);
-      pdf.setLineDashPattern([1, 0.8], 0);
-      pdf.line(marginX, y, width - marginX, y);
-      pdf.setLineDashPattern([], 0);
-      y += 4;
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(7 * scale);
-      pdf.setTextColor(20, 20, 20);
-      const slimLabelW = pdf.getTextWidth("SCAN & PAY");
-      const slimMarkW = drawUpiMark(pdf, 0, -1000, 7 * scale, [20, 20, 20]); // measure off-page
-      const slimGap = 2.5;
-      pdf.text("SCAN & PAY", centerX - (slimLabelW + slimGap + slimMarkW) / 2, y);
-      drawUpiMark(
-        pdf,
-        centerX - (slimLabelW + slimGap + slimMarkW) / 2 + slimLabelW + slimGap,
+      const balanceRow = doc.totals.find((t) => t.label === "Balance due");
+      const statusVal = (doc.totals.find((t) => t.label === "Status")?.value || "").toUpperCase();
+      const panelH = drawUpiPanel(pdf, {
+        x: marginX,
         y,
-        7 * scale,
-        [20, 20, 20],
-      );
-      y += 2;
-      drawQr(
-        pdf,
-        centerX - qrSize / 2,
-        y,
-        qrSize,
-        upiUri(s.upiId, s.shopName, grandAmount, `${doc.kind} ${doc.docNo}`),
-      );
-      y += qrSize + 3;
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(smallFont);
-      pdf.text(fitTextToWidth(pdf, s.upiId, contentW), centerX, y, {
-        align: "center",
+        width: contentW,
+        upiId: s.upiId,
+        payeeName: s.shopName,
+        reference: doc.docNo,
+        balanceText: balanceRow?.value ?? null,
+        status: statusVal,
+        scale,
+        variant: "slim",
+        apps: s.upiApps,
+        navy: NAVY,
+        gold: GOLD,
+        fill: LIGHT_FILL,
+        green: GREEN,
       });
-      y += smallFont * 0.62;
-      const slimChipRowH = drawAppStrip(pdf, resolveApps(s.upiApps), centerX, y, 5 * scale, true, {
-        left: marginX,
-        right: marginX + contentW,
-      });
-      // Keeps the same ~9mm gap before the PAID/balance line the old fixed
-      // constant produced, but now anchored to the chip strip's *actual*
-      // height (which may be two rows) instead of assuming one.
-      y += slimChipRowH + 5.3;
-      if (statusValue === "PAID") {
-        pdf.setFont("helvetica", "bold");
-        pdf.text("PAID", centerX, y, { align: "center" });
-        y += smallFont * 0.62;
-      } else {
-        const balance = doc.totals.find((total) => total.label === "Balance due")?.value;
-        if (balance) {
-          pdf.setTextColor(150, 90, 10);
-          pdf.text(
-            fitTextToWidth(pdf, `Balance due  ${balance}`, contentW),
-            centerX,
-            y,
-            { align: "center" },
-          );
-          y += smallFont * 0.62;
-        }
-        pdf.setTextColor(70, 70, 70);
-        pdf.setFont("helvetica", "normal");
-        pdf.text("Enter amount in your UPI app", centerX, y, {
-          align: "center",
-        });
-        y += smallFont * 0.62;
-      }
-      y += 2;
+      y += panelH + 2;
     }
 
     pdf.setLineDashPattern([1, 0.8], 0);
