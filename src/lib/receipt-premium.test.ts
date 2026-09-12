@@ -2,35 +2,22 @@ import { describe, expect, it, vi } from "vitest";
 
 import { buildPremiumReceiptPdf } from "./receipt-premium";
 import { DEFAULT_PRINT_SETTINGS, type PaperId, type PrintSettings } from "./print";
+import { PAYMENT_BRAND_LOGOS } from "./payment-brand-assets";
 import type { ReceiptDoc } from "./receipt";
 
 /**
  * jsPDF assigns methods as own instance properties, not on the prototype —
  * see the identical mock in receipt-layout.test.ts / report-pdf.test.ts.
- * Here it's used to confirm the UPI app labels are actually drawn, not just
- * that the PDF builds without throwing.
+ * Here it's used to confirm the embedded official wordmarks are actually
+ * drawn, not just that the PDF builds without throwing.
  */
-type RectCall = { x: number; y: number; w: number; h: number; style: string };
-let rectCapture: RectCall[] | null = null;
 let textCapture: string[] | null = null;
+let imageCapture: string[] | null = null;
 
 vi.mock("jspdf", async (importOriginal) => {
   const actual = await importOriginal<typeof import("jspdf")>();
   function PatchedJsPDF(this: unknown, ...args: ConstructorParameters<typeof actual.jsPDF>) {
     const instance = new actual.jsPDF(...args);
-    const originalRoundedRect = instance.roundedRect.bind(instance);
-    instance.roundedRect = (
-      x: number,
-      y: number,
-      w: number,
-      h: number,
-      rx: number,
-      ry: number,
-      style: string,
-    ) => {
-      if (rectCapture) rectCapture.push({ x, y, w, h, style });
-      return originalRoundedRect(x, y, w, h, rx, ry, style);
-    };
     const originalText = instance.text.bind(instance);
     instance.text = (
       text: string | string[],
@@ -41,6 +28,18 @@ vi.mock("jspdf", async (importOriginal) => {
       if (textCapture && typeof text === "string") textCapture.push(text);
       return originalText(text, x, y, options);
     };
+    const originalAddImage = instance.addImage.bind(instance);
+    instance.addImage = ((...args: Parameters<typeof instance.addImage>) => {
+      const [image] = args;
+      if (
+        imageCapture &&
+        typeof image === "string" &&
+        Object.values(PAYMENT_BRAND_LOGOS).some((logo) => logo.dataUrl === image)
+      ) {
+        imageCapture.push(image);
+      }
+      return originalAddImage(...args);
+    }) as typeof instance.addImage;
     return instance;
   }
   return { ...actual, jsPDF: PatchedJsPDF };
@@ -88,60 +87,65 @@ describe("buildPremiumReceiptPdf — UPI Scan & Pay box", () => {
     textCapture = null;
   });
 
-  it("draws the default Google Pay + PhonePe app row under the QR on A4", () => {
-    textCapture = [];
+  it("draws the default Google Pay + PhonePe wordmarks under the QR on A4", () => {
+    imageCapture = [];
     buildPremiumReceiptPdf(SAMPLE_DOC, settingsFor("a4", { upiId: "shop@upi" }));
-    expect(textCapture).toContain("Google Pay");
-    expect(textCapture).toContain("PhonePe");
-    textCapture = null;
+    expect(imageCapture).toEqual([
+      PAYMENT_BRAND_LOGOS.gpay.dataUrl,
+      PAYMENT_BRAND_LOGOS.phonepe.dataUrl,
+    ]);
+    imageCapture = null;
   });
 
   it("respects a custom upiApps selection, including on the narrow 80mm layout", () => {
-    textCapture = [];
+    imageCapture = [];
     buildPremiumReceiptPdf(
       SAMPLE_DOC,
       settingsFor("80mm", { upiId: "shop@upi", upiApps: ["paytm", "bhim"] }),
     );
-    expect(textCapture).toContain("Paytm");
-    expect(textCapture).toContain("BHIM");
-    expect(textCapture).not.toContain("Google Pay");
-    textCapture = null;
+    expect(imageCapture).toEqual([
+      PAYMENT_BRAND_LOGOS.paytm.dataUrl,
+      PAYMENT_BRAND_LOGOS.bhim.dataUrl,
+      PAYMENT_BRAND_LOGOS.paytm.dataUrl,
+      PAYMENT_BRAND_LOGOS.bhim.dataUrl,
+    ]);
+    imageCapture = null;
   });
 
-  it("falls back to the Google Pay + PhonePe default when upiApps is empty/corrupted", () => {
-    textCapture = [];
+  it("falls back to the Google Pay + PhonePe wordmarks when upiApps is empty/corrupted", () => {
+    imageCapture = [];
     buildPremiumReceiptPdf(
       SAMPLE_DOC,
       settingsFor("a5", { upiId: "shop@upi", upiApps: [] as unknown as PrintSettings["upiApps"] }),
     );
-    expect(textCapture).toContain("Google Pay");
-    expect(textCapture).toContain("PhonePe");
-    textCapture = null;
+    expect(imageCapture).toEqual([
+      PAYMENT_BRAND_LOGOS.gpay.dataUrl,
+      PAYMENT_BRAND_LOGOS.phonepe.dataUrl,
+    ]);
+    imageCapture = null;
   });
 
-  it("keeps app labels out of nested boxes on the always-colour A4/A5 layout", () => {
-    rectCapture = [];
+  it("keeps the supplied wordmarks visible on the always-colour A4/A5 layout", () => {
+    imageCapture = [];
     // A4/A5 are always full colour regardless of thermalColorMode — see
     // renderBoxed()'s wantColor = wide || thermalColorMode === "color".
     buildPremiumReceiptPdf(
       SAMPLE_DOC,
       settingsFor("a4", { upiId: "shop@upi", thermalColorMode: "bw" }),
     );
-    // The app row uses a dot + official name now; it should not introduce
-    // another row of pill-shaped boxes below the QR.
-    const chipRects = rectCapture.filter((r) => r.h < 10);
-    expect(chipRects).toHaveLength(0);
-    rectCapture = null;
+    expect(imageCapture).toHaveLength(2);
+    imageCapture = null;
   });
 
-  it("keeps app labels out of nested boxes on a monochrome 80mm thermal", () => {
-    rectCapture = [];
+  it("keeps the supplied wordmarks visible on a monochrome 80mm thermal", () => {
+    imageCapture = [];
     buildPremiumReceiptPdf(
       SAMPLE_DOC,
       settingsFor("80mm", { upiId: "shop@upi", thermalColorMode: "bw" }),
     );
-    const chipRects = rectCapture.filter((r) => r.h < 10);
-    expect(chipRects).toHaveLength(0);
-    rectCapture = null;
+    // 80mm is measured once on a scratch page and then rendered again at
+    // the measured height, so the row is drawn twice during one export.
+    expect(imageCapture).toHaveLength(4);
+    imageCapture = null;
   });
 });

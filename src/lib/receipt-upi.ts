@@ -1,4 +1,5 @@
 import type { jsPDF } from "jspdf";
+import { PAYMENT_BRAND_LOGOS, type PaymentBrandId } from "./payment-brand-assets";
 
 /**
  * Shared UPI-app chip list, used by both the printed receipt's "Scan & Pay"
@@ -15,10 +16,10 @@ import type { jsPDF } from "jspdf";
  */
 
 export const UPI_APPS = [
-  { id: "gpay", name: "Google Pay", color: [66, 133, 244] as RGB },
-  { id: "phonepe", name: "PhonePe", color: [95, 37, 159] as RGB },
-  { id: "paytm", name: "Paytm", color: [0, 150, 214] as RGB },
-  { id: "bhim", name: "BHIM", color: [242, 101, 34] as RGB },
+  { id: "gpay", name: "Google Pay", color: [66, 133, 244] as RGB, brand: "gpay" },
+  { id: "phonepe", name: "PhonePe", color: [95, 37, 159] as RGB, brand: "phonepe" },
+  { id: "paytm", name: "Paytm", color: [0, 150, 214] as RGB, brand: "paytm" },
+  { id: "bhim", name: "BHIM", color: [242, 101, 34] as RGB, brand: "bhim" },
 ] as const;
 
 export type UpiAppId = (typeof UPI_APPS)[number]["id"];
@@ -56,9 +57,9 @@ export function upiUri(opts: { upiId: string; payeeName?: string; note?: string 
 }
 
 /**
- * Lightweight app line under the QR. Keep the official app names readable
- * without putting each name inside a pill or a second box — the QR remains
- * the visual focus and the line still works on monochrome thermal printers.
+ * Official payment wordmarks under the QR. They are embedded locally so the
+ * invoice export remains offline and keeps the brand typography instead of
+ * substituting a generic font.
  * Returns the row height consumed, so callers can advance their cursor by it.
  */
 export function drawAppStrip(
@@ -69,22 +70,26 @@ export function drawAppStrip(
   fontSize: number,
   mono: boolean,
 ): number {
-  const gap = 2.2;
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(fontSize);
+  const gap = 1.2;
+  const logoH = Math.max(2.8, fontSize * 0.62);
+  const padX = mono ? 0.8 : 1;
+  const padY = 0.45;
+  const rowH = logoH + padY * 2;
   const total = apps.reduce(
-    (w, a) => w + fontSize * 0.22 + 0.8 + pdf.getTextWidth(a.name) + gap,
+    (w, a) => w + logoH * PAYMENT_BRAND_LOGOS[a.brand as PaymentBrandId].aspect + padX * 2 + gap,
     -gap,
   );
   let x = centerX - total / 2;
   for (const app of apps) {
-    const dot = fontSize * 0.22;
-    const textX = x + dot + 0.8;
-    pdf.setFillColor(...(mono ? [70, 70, 70] : app.color));
-    pdf.circle(x + dot / 2, y + fontSize * 0.32, dot / 2, "F");
-    pdf.setTextColor(...(mono ? [55, 55, 55] : [45, 45, 45]));
-    pdf.text(app.name, textX, y + fontSize * 0.72);
-    x += dot + 0.8 + pdf.getTextWidth(app.name) + gap;
+    const logo = PAYMENT_BRAND_LOGOS[app.brand as PaymentBrandId];
+    const logoW = logoH * logo.aspect;
+    const w = logoW + padX * 2;
+    pdf.setFillColor(255, 255, 255);
+    pdf.setDrawColor(mono ? 90 : 220, mono ? 90 : 222, mono ? 90 : 228);
+    pdf.setLineWidth(0.15);
+    pdf.roundedRect(x, y, w, rowH, 0.7, 0.7, "FD");
+    pdf.addImage(logo.dataUrl, "PNG", x + padX, y + padY, logoW, logoH);
+    x += w + gap;
   }
-  return fontSize * 0.72;
+  return rowH;
 }

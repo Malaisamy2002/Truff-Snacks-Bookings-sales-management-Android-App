@@ -135,7 +135,7 @@ export function buildPremiumReceiptPdf(doc: ReceiptDoc, s: PrintSettings): jsPDF
 function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "roll"): jsPDF {
   const wide = kind === "a4" || kind === "a5";
   const width = wide ? paperInfo(s.paper).widthMm : paperWidthMm(s);
-  const scale = s.fontScale || 1;
+  let scale = s.fontScale || 1;
   const sym = s.currencySymbol;
   const wantColor = wide || s.thermalColorMode === "color";
   const navy = wantColor ? NAVY : ([40, 40, 40] as [number, number, number]);
@@ -148,11 +148,30 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
   const contentW = width - marginX * 2;
   const money = (v: number) => pmoney(v, sym);
 
-  const renderBody = (pdf: jsPDF, pageH: number): number => {
+  const renderBody = (pdf: jsPDF, pageH: number, includeUpi = true): number => {
     let y = 0;
     const headerFont = wide ? (kind === "a4" ? 20 : 15) : 11;
     const bodyFont = wide ? (kind === "a4" ? 10 : 8.5) : 7.5;
     const smallFont = wide ? (kind === "a4" ? 8 : 7) : 6;
+
+    // Footer geometry is calculated before drawing so long wrapped addresses
+    // never collide with the footer text or a payment panel on fixed sheets.
+    const footerText = [s.footerLine, s.shopPhone && s.showPhone ? `Ph: ${s.shopPhone}` : ""]
+      .filter(Boolean)
+      .join("   ·   ");
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(smallFont * scale);
+    const addrLines =
+      wide && s.shopAddress ? (pdf.splitTextToSize(s.shopAddress, contentW) as string[]) : [];
+    const addrLineH = smallFont * scale * 0.55;
+    const footPad = wide ? 3 : 2.5;
+    const minFootH = wide ? 12 : 8;
+    const footContentH =
+      addrLines.length * addrLineH +
+      (addrLines.length && footerText ? 1.5 : 0) +
+      (footerText ? smallFont * scale * 0.6 : 0);
+    const footH =
+      addrLines.length || footerText ? Math.max(minFootH, footContentH + footPad * 2) : minFootH;
 
     // Header band. Base height for a single-line shop name; grows below if
     // the name wraps, so the header line / doc-kind title never land on top
@@ -328,9 +347,22 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
 
     // Item table — shaded navy header, zebra rows.
     const noColW = wide ? 8 : 6;
-    const qtyColW = wide ? contentW * 0.14 : contentW * 0.18;
-    const amtColW = wide ? contentW * 0.2 : contentW * 0.26;
-    const labelColW = contentW - noColW - qtyColW - amtColW;
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(bodyFont * scale);
+    const qtyTexts = doc.lines.map((line) => (line.qty === undefined ? "" : String(line.qty)));
+    const amountTexts = doc.lines.map((line) => money(line.amount ?? 0));
+    const widest = (values: string[]) =>
+      Math.max(...values.map((value) => pdf.getTextWidth(value)));
+    const qtyColW = Math.min(
+      contentW * (wide ? 0.24 : 0.35),
+      Math.max(7 * scale, widest(["QTY", ...qtyTexts])),
+    );
+    const amtColW = Math.min(
+      Math.max(contentW - noColW - 6, 12 * scale),
+      Math.max(12 * scale, widest([wide ? "AMOUNT" : "AMT", ...amountTexts])),
+    );
+    const columnGap = wide ? 2 * scale : 1 * scale;
+    const labelColW = contentW - noColW - qtyColW - amtColW - columnGap;
     const rowH = (wide ? 6.5 : 5) * scale;
     const headerBandH = (wide ? 7 : 5.5) * scale;
 
@@ -354,8 +386,12 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(bodyFont * scale);
     doc.lines.forEach((line, i) => {
-      const labelLines = pdf.splitTextToSize(line.label, labelColW - 2) as string[];
-      const nLines = Math.max(1, Math.min(2, labelLines.length)) + (line.sub ? 1 : 0);
+      const rawLines = pdf.splitTextToSize(line.label, labelColW - 2) as string[];
+      const labelLines = rawLines.slice(0, 2);
+      if (rawLines.length > 2) {
+        labelLines[1] = `${(labelLines[1] ?? "").replace(/\s+\S*$/, "")}…`;
+      }
+      const nLines = Math.max(1, labelLines.length) + (line.sub ? 1 : 0);
       const bandH = rowH * Math.max(1, nLines * 0.72);
       if (i % 2 === 1) {
         pdf.setFillColor(...fill);
@@ -365,19 +401,26 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
       const ty = y + rowH * 0.62;
       pdf.setFont("helvetica", "normal");
       pdf.text(String(i + 1), marginX + 2, ty);
-      pdf.text(labelLines[0] ?? "", marginX + noColW, ty);
+      labelLines.forEach((label, lineIndex) => {
+        pdf.text(label, marginX + noColW, ty + lineIndex * rowH * 0.62);
+      });
+      const qty = line.qty !== undefined ? String(line.qty) : "";
+      const amount = money(line.amount ?? 0);
       pdf.text(
-        line.qty !== undefined ? String(line.qty) : "",
+        fitTextToWidth(pdf, qty, qtyColW - 1),
         marginX + noColW + labelColW + qtyColW,
         ty,
         { align: "right" },
       );
-      pdf.text(money(line.amount ?? 0), width - marginX - 1, ty, { align: "right" });
+      pdf.text(fitTextToWidth(pdf, amount, amtColW - 1), width - marginX - 1, ty, {
+        align: "right",
+      });
       if (line.sub) {
         pdf.setFont("helvetica", "normal");
         pdf.setFontSize((wide ? 7.5 : 6) * scale);
         pdf.setTextColor(110, 110, 110);
-        pdf.text(fitTextToWidth(pdf, line.sub, labelColW - 2), marginX + noColW, ty + rowH * 0.68);
+        const subY = ty + labelLines.length * rowH * 0.62;
+        pdf.text(fitTextToWidth(pdf, line.sub, labelColW - 2), marginX + noColW, subY);
         pdf.setFontSize(bodyFont * scale);
       }
       pdf.setDrawColor(...RULE);
@@ -426,8 +469,10 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
     }
     y += wide ? 6 : 5;
 
+    let deferredUpi = false;
+
     // Payment / QR box — only when a UPI ID is configured.
-    if (s.upiId.trim()) {
+    if (includeUpi && s.upiId.trim()) {
       const grandVal = grand ? Number(grand.value.replace(/[^0-9.-]/g, "")) : null;
       // Give the QR enough physical size to scan from a phone, especially on
       // the 80 mm roll where the old 18 mm code was unnecessarily tiny.
@@ -440,9 +485,15 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
       const chipFont = (wide ? 6.2 : 5) * scale;
       const chipApps = resolveApps(s.upiApps);
       const mono = !wantColor;
+      let chipRowH = 0;
       pdf.setFillColor(...fill);
       pdf.setDrawColor(...RULE);
-      if (wide) {
+      const estimatedHeight = wide
+        ? boxH + 2.5 + Math.max(chipFont * 0.62 + 0.9, 3) + 4
+        : qrSize + 11 + Math.max(chipFont * 0.62 + 0.9, 3) + 4;
+      if (wide && y + estimatedHeight > pageH - footH - 2) {
+        deferredUpi = true;
+      } else if (wide) {
         pdf.roundedRect(marginX, y, payW, boxH, 1.5, 1.5, "FD");
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(8 * scale);
@@ -451,7 +502,11 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
         pdf.setFont("helvetica", "normal");
         pdf.setFontSize(bodyFont * scale);
         pdf.setTextColor(40, 40, 40);
-        pdf.text(`UPI ID: ${s.upiId}`, marginX + 3, y + 12);
+        pdf.text(
+          fitTextToWidth(pdf, `UPI ID: ${s.upiId}`, payW - 6),
+          marginX + 3,
+          y + 12,
+        );
         if (statusVal) pdf.text(`Status: ${statusVal}`, marginX + 3, y + 18);
         pdf.roundedRect(marginX + payW + 4, y, qrSize + 4, boxH, 1.5, 1.5, "FD");
         drawQr(
@@ -461,7 +516,7 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
           qrSize,
           upiUri(s.upiId, s.shopName, grandVal, `${doc.kind} ${doc.docNo}`),
         );
-        drawAppStrip(
+        chipRowH = drawAppStrip(
           pdf,
           chipApps,
           marginX + payW + 6 + qrSize / 2,
@@ -485,8 +540,10 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
         pdf.setFont("helvetica", "normal");
         pdf.setFontSize(smallFont * scale);
         pdf.setTextColor(80, 80, 80);
-        pdf.text(s.upiId, centerX, y + qrSize + 8, { align: "center" });
-        drawAppStrip(pdf, chipApps, centerX, y + qrSize + 11, chipFont, mono);
+        pdf.text(fitTextToWidth(pdf, s.upiId, contentW), centerX, y + qrSize + 8, {
+          align: "center",
+        });
+        chipRowH = drawAppStrip(pdf, chipApps, centerX, y + qrSize + 11, chipFont, mono);
       }
       // Wide (A4/A5) draws a fixed-height boxed row, then the chip strip
       // hangs chipFont*0.72 (its own row height) below the box. The narrow
@@ -495,8 +552,9 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
       // row height. Either way, advance past the chip row plus a gap —
       // not past boxH/qrSize+8 alone (both now undershoot, since the chip
       // row wasn't part of either original measurement).
-      const chipRowH = chipFont * 0.72;
-      y += wide ? boxH + 2.5 + chipRowH + 4 : qrSize + 11 + chipRowH + 4;
+      if (!deferredUpi) {
+        y += wide ? boxH + 2.5 + chipRowH + 4 : qrSize + 11 + chipRowH + 4;
+      }
     }
 
     if (doc.note) {
@@ -512,33 +570,81 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
     }
 
     // Footer band.
-    const footerText = [s.footerLine, s.shopPhone && s.showPhone ? `Ph: ${s.shopPhone}` : ""]
-      .filter(Boolean)
-      .join("   ·   ");
     if (footerText || (wide && s.shopAddress)) {
-      const footH = wide ? 12 : 8;
       pdf.setFillColor(...navy);
       pdf.rect(0, pageH - footH, width, footH, "F");
       pdf.setTextColor(255, 255, 255);
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(smallFont * scale);
-      if (wide && s.shopAddress) {
-        pdf.text(
-          fitTextToWidth(pdf, s.shopAddress, contentW),
-          width / 2,
-          pageH - footH + footH * 0.42,
-          { align: "center" },
-        );
+      if (addrLines.length) {
+        let fy = pageH - footH + footPad + smallFont * scale * 0.45;
+        for (const line of addrLines) {
+          pdf.text(line, width / 2, fy, { align: "center" });
+          fy += addrLineH;
+        }
       }
       if (footerText) {
         pdf.text(
           fitTextToWidth(pdf, footerText, contentW),
           width / 2,
-          pageH - footH + footH * (wide ? 0.8 : 0.6),
+          pageH - footH + (addrLines.length ? footPad + addrLines.length * addrLineH + 1.5 : footH * 0.6),
           {
             align: "center",
           },
         );
+      }
+    }
+
+    if (deferredUpi) {
+      pdf.addPage([width, pageH]);
+      const paymentY = kind === "a4" ? 24 : 18;
+      const centerX = marginX + contentW / 2;
+      const qrSize = kind === "a4" ? 30 : 24;
+      const grandVal = doc.totals.find((t) => t.strong);
+      const grandAmount = grandVal ? Number(grandVal.value.replace(/[^0-9.-]/g, "")) : null;
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(10 * scale);
+      pdf.setTextColor(...navy);
+      pdf.text("SCAN & PAY", centerX, paymentY, { align: "center" });
+      drawQr(
+        pdf,
+        centerX - qrSize / 2,
+        paymentY + 5,
+        qrSize,
+        upiUri(s.upiId, s.shopName, grandAmount, `${doc.kind} ${doc.docNo}`),
+      );
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(smallFont * scale);
+      pdf.setTextColor(80, 80, 80);
+      pdf.text(fitTextToWidth(pdf, s.upiId, contentW), centerX, paymentY + qrSize + 8, {
+        align: "center",
+      });
+      const deferredChipFont = (kind === "a4" ? 6.2 : 5) * scale;
+      drawAppStrip(
+        pdf,
+        resolveApps(s.upiApps),
+        centerX,
+        paymentY + qrSize + 11,
+        deferredChipFont,
+        !wantColor,
+      );
+      if (footerText || addrLines.length) {
+        pdf.setFillColor(...navy);
+        pdf.rect(0, pageH - footH, width, footH, "F");
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(smallFont * scale);
+        let fy = pageH - footH + footPad + smallFont * scale * 0.45;
+        for (const line of addrLines) {
+          pdf.text(line, width / 2, fy, { align: "center" });
+          fy += addrLineH;
+        }
+        if (addrLines.length && footerText) fy += 1.5;
+        if (footerText) {
+          pdf.text(fitTextToWidth(pdf, footerText, contentW), width / 2, fy, {
+            align: "center",
+          });
+        }
       }
     }
 
@@ -547,6 +653,15 @@ function renderBoxed(doc: ReceiptDoc, s: PrintSettings, kind: "a4" | "a5" | "rol
 
   if (wide) {
     const height = paperInfo(s.paper).heightMm!;
+    // Fixed A4/A5 sheets must reserve space for the footer. Measure once and
+    // reduce the complete layout proportionally for unusually long bills
+    // rather than allowing totals to disappear underneath the footer.
+    const probe = new jsPDF({ unit: "mm", format: [width, height] });
+    const measured = renderBody(probe, height, false);
+    const usableHeight = height - (wide ? 28 : 14);
+    if (measured > usableHeight) {
+      scale = Math.max(0.72, scale * (usableHeight / measured));
+    }
     const pdf = new jsPDF({ unit: "mm", format: [width, height] });
     renderBody(pdf, height);
     return pdf;
@@ -697,6 +812,70 @@ function renderCondensed(doc: ReceiptDoc, s: PrintSettings): jsPDF {
       for (const line of noteLines) {
         pdf.text(line, marginX, y);
         y += smallFont * 0.6;
+      }
+      y += 2;
+    }
+
+    // Narrow premium slips still get the same QR payment information as the
+    // 80mm/A5 layouts. Keep every centered value measured so a long VPA
+    // cannot run off either edge of a 50mm roll.
+    if (s.upiId.trim()) {
+      const centerX = width / 2;
+      const qrSize = Math.min(contentW - 6, 30);
+      const grandAmount = grand
+        ? Number(grand.value.replace(/[^0-9.-]/g, ""))
+        : null;
+      const statusValue = (
+        doc.totals.find((total) => total.label === "Status")?.value || ""
+      ).toUpperCase();
+      pdf.setDrawColor(...RULE);
+      pdf.setLineDashPattern([1, 0.8], 0);
+      pdf.line(marginX, y, width - marginX, y);
+      pdf.setLineDashPattern([], 0);
+      y += 4;
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(7 * scale);
+      pdf.setTextColor(20, 20, 20);
+      pdf.text("SCAN & PAY  ·  UPI", centerX, y, { align: "center" });
+      y += 2;
+      drawQr(
+        pdf,
+        centerX - qrSize / 2,
+        y,
+        qrSize,
+        upiUri(s.upiId, s.shopName, grandAmount, `${doc.kind} ${doc.docNo}`),
+      );
+      y += qrSize + 3;
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(smallFont);
+      pdf.text(fitTextToWidth(pdf, s.upiId, contentW), centerX, y, {
+        align: "center",
+      });
+      y += smallFont * 0.62;
+      drawAppStrip(pdf, resolveApps(s.upiApps), centerX, y, 5 * scale, true);
+      y += Math.max(2.8, 5 * scale * 0.62) + 6.2;
+      if (statusValue === "PAID") {
+        pdf.setFont("helvetica", "bold");
+        pdf.text("PAID", centerX, y, { align: "center" });
+        y += smallFont * 0.62;
+      } else {
+        const balance = doc.totals.find((total) => total.label === "Balance due")?.value;
+        if (balance) {
+          pdf.setTextColor(150, 90, 10);
+          pdf.text(
+            fitTextToWidth(pdf, `Balance due  ${balance}`, contentW),
+            centerX,
+            y,
+            { align: "center" },
+          );
+          y += smallFont * 0.62;
+        }
+        pdf.setTextColor(70, 70, 70);
+        pdf.setFont("helvetica", "normal");
+        pdf.text("Enter amount in your UPI app", centerX, y, {
+          align: "center",
+        });
+        y += smallFont * 0.62;
       }
       y += 2;
     }
